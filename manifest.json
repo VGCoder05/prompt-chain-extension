@@ -25,7 +25,11 @@
         "lib/storage.js",
         "lib/logger.js",
         "content/selectorEngine.js",
+        "content/recorder.js",
         "content/main.js"
+      ],
+      "css": [
+        "content/overlay.css"
       ],
       "run_at": "document_idle"
     }
