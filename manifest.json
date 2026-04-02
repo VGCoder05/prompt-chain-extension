@@ -13,5 +13,21 @@
 
   "host_permissions": [
     "<all_urls>"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "lib/constants.js",
+        "lib/utils.js",
+        "lib/messages.js",
+        "lib/storage.js",
+        "lib/logger.js",
+        "content/selectorEngine.js",
+        "content/main.js"
+      ],
+      "run_at": "document_idle"
+    }
   ]
 }

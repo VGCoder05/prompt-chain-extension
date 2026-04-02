@@ -1,0 +1,186 @@
+/**
+ * content/overlay.css
+ * ────────────────────────────────────────────
+ * Styles for the recording overlay UI:
+ *  - Instruction banner at top of page
+ *  - Element hover highlight
+ *  - Step progress indicator
+ *  - Action buttons (skip, cancel)
+ *
+ * Uses "pc-" prefix on ALL class names to avoid
+ * conflicts with the host page's styles.
+ * Uses !important sparingly and only where the host
+ * page might override our overlay.
+ */
+
+/* ── Instruction Banner ──────────────────────────────── */
+.pc-recording-banner {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 2147483647 !important; /* Max z-index */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 12px 20px !important;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  color: #ffffff !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+  animation: pc-slideDown 0.3s ease !important;
+  box-sizing: border-box !important;
+}
+
+@keyframes pc-slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pc-banner-content {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex: 1 !important;
+}
+
+.pc-banner-step {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 12px !important;
+  padding: 2px 10px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+.pc-banner-text {
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+}
+
+.pc-banner-actions {
+  display: flex !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.pc-banner-btn {
+  padding: 6px 14px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: background 0.2s !important;
+  font-family: inherit !important;
+  line-height: 1 !important;
+}
+
+.pc-banner-btn:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+
+.pc-banner-btn--cancel {
+  border-color: rgba(255, 100, 100, 0.5) !important;
+  background: rgba(255, 100, 100, 0.15) !important;
+}
+
+.pc-banner-btn--cancel:hover {
+  background: rgba(255, 100, 100, 0.3) !important;
+}
+
+/* ── Hover Highlight (applied via JS to hovered elements) ──── */
+/* We use outline so it doesn't affect page layout (unlike border) */
+.pc-highlight-element {
+  outline: 3px solid #4ade80 !important;
+  outline-offset: 2px !important;
+  cursor: crosshair !important;
+}
+
+/* ── Picked Element Flash (briefly shown after user clicks) ── */
+.pc-picked-flash {
+  outline: 3px solid #facc15 !important;
+  outline-offset: 2px !important;
+  animation: pc-flashPick 0.6s ease !important;
+}
+
+@keyframes pc-flashPick {
+  0%   { outline-color: #facc15; }
+  50%  { outline-color: #22c55e; }
+  100% { outline-color: #22c55e; }
+}
+
+/* ── Progress Dots ───────────────────────────────────── */
+.pc-progress {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: center !important;
+  margin-left: 12px !important;
+}
+
+.pc-progress-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.25) !important;
+  transition: background 0.3s !important;
+}
+
+.pc-progress-dot--done {
+  background: #4ade80 !important;
+}
+
+.pc-progress-dot--active {
+  background: #ffffff !important;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5) !important;
+}
+
+/* ── Waiting State (step 3: user needs to send a message) ──── */
+.pc-waiting-overlay {
+  position: fixed !important;
+  bottom: 20px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 2147483646 !important;
+  background: rgba(0, 0, 0, 0.85) !important;
+  color: #ffffff !important;
+  padding: 12px 24px !important;
+  border-radius: 10px !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  font-size: 13px !important;
+  text-align: center !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+  animation: pc-fadeIn 0.3s ease !important;
+}
+
+@keyframes pc-fadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.pc-waiting-spinner {
+  display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  border-top-color: #ffffff !important;
+  border-radius: 50% !important;
+  animation: pc-spin 0.8s linear infinite !important;
+  margin-right: 8px !important;
+  vertical-align: middle !important;
+}
+
+@keyframes pc-spin {
+  to { transform: rotate(360deg); }
+}
