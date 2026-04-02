@@ -261,10 +261,11 @@
             signal
           );
 
-          // ── B. INJECT TEXT ──────────────────────────────
-          const injectResult = await PC.Replayer.injectText(
+           // ── B. INJECT TEXT (with verification) ─────────
+          const injectResult = await PC.Replayer.injectAndVerify(
             this.recipe.elements.targetInput,
-            prompt
+            prompt,
+            { verifyDelay: 200, verifyAttempts: 3 }
           );
 
           if (!injectResult.success) {
@@ -276,14 +277,23 @@
             attempt,
             confidence: injectResult.confidence,
             method: injectResult.method,
+            verified: injectResult.verified,
+            verifyAttempt: injectResult.verifyAttempt,
           });
 
           // ── C. Post-inject delay (framework sync) ──────
+          // Shorter now since injectAndVerify already waited for verify
           await PC.Utils.jitteredSleep(
-            this.settings.delayAfterInject,
+            Math.max(100, this.settings.delayAfterInject - 200),
             this.settings.jitterMs,
             signal
           );
+
+          // ── C2. Final check: is text still there? ──────
+          const textCheck = await PC.Replayer.getInputText(this.recipe.elements.targetInput);
+          if (textCheck.length === 0) {
+            throw new Error('Input was cleared before send — page may be interfering');
+          }
 
           // ── D. CLICK SEND ──────────────────────────────
           const sendResult = await PC.Replayer.clickSend(

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt Chain Extension</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+  <div class="popup">
+
+    <!-- ── Header ──────────────────────────────────── -->
+    <header class="header">
+      <div class="header-left">
+        <span class="logo">🔗</span>
+        <h1 class="title">Prompt Chain</h1>
+      </div>
+      <div class="header-right">
+        <button id="btnOpenDashboard" class="icon-btn" title="Open Dashboard">⚙️</button>
+      </div>
+    </header>
+
+    <!-- ── Status Bar (shows when chain is running) ── -->
+    <div class="status-bar" id="statusBar" style="display:none;">
+      <div class="status-info">
+        <span class="status-icon" id="statusIcon">🔄</span>
+        <span class="status-text" id="statusText">Running...</span>
+      </div>
+      <div class="status-actions">
+        <button id="btnPause" class="sm-btn" title="Pause">⏸</button>
+        <button id="btnResume" class="sm-btn" title="Resume" style="display:none;">▶</button>
+        <button id="btnCancel" class="sm-btn sm-btn--danger" title="Cancel">⏹</button>
+      </div>
+    </div>
+
+    <!-- ── Tab Navigation ─────────────────────────── -->
+    <nav class="tabs">
+      <button class="tab tab--active" data-tab="recipes">Recipes</button>
+      <button class="tab" data-tab="chains">Chains</button>
+      <button class="tab" data-tab="quick">Quick Run</button>
+    </nav>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!--  TAB: Recipes                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="tab-content tab-content--active" id="tab-recipes">
+
+      <div class="section-header">
+        <span class="section-title">Recorded Recipes</span>
+        <button id="btnRecord" class="action-btn">🎯 Record</button>
+      </div>
+
+      <div class="list" id="recipeList">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="empty-state" id="recipeEmpty">
+        <p>No recipes yet.</p>
+        <p class="hint">Navigate to an AI chat site and click <strong>🎯 Record</strong> to create one.</p>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!--  TAB: Chains                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-chains">
+
+      <div class="section-header">
+        <span class="section-title">Prompt Chains</span>
+        <button id="btnNewChain" class="action-btn">＋ New</button>
+      </div>
+
+      <div class="list" id="chainList">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="empty-state" id="chainEmpty">
+        <p>No chains yet.</p>
+        <p class="hint">Create a chain or use the <strong>Dashboard</strong> for full management.</p>
+      </div>
+
+      <!-- ── Inline Chain Creator ──────────────────── -->
+      <div class="inline-form" id="chainForm" style="display:none;">
+        <input type="text" id="chainNameInput" class="text-input" placeholder="Chain name..." />
+
+        <label class="form-label">Select Recipe</label>
+        <select id="chainRecipeSelect" class="select-input">
+          <option value="">-- Select a recipe --</option>
+        </select>
+
+        <label class="form-label">Prompts <span class="hint">(one per line)</span></label>
+        <textarea id="chainPromptsInput" class="textarea-input" rows="6"
+          placeholder="Enter each prompt on a new line...&#10;Prompt 1: You are a senior engineer...&#10;Prompt 2: Review this code...&#10;Prompt 3: Fix the bugs..."></textarea>
+
+        <div class="form-actions">
+          <button id="btnSaveChain" class="action-btn action-btn--primary">💾 Save Chain</button>
+          <button id="btnCancelChain" class="action-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!--  TAB: Quick Run                                -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-quick">
+
+      <div class="section-header">
+        <span class="section-title">Quick Run</span>
+      </div>
+
+      <p class="hint" style="padding:0 4px 8px;">Run prompts immediately on the current tab without saving a chain.</p>
+
+      <label class="form-label">Recipe for current site</label>
+      <div class="current-recipe" id="currentRecipeInfo">
+        <span class="hint">Checking...</span>
+      </div>
+
+      <label class="form-label">Prompts <span class="hint">(one per line)</span></label>
+      <textarea id="quickPromptsInput" class="textarea-input" rows="6"
+        placeholder="Enter each prompt on a new line..."></textarea>
+
+      <button id="btnQuickRun" class="action-btn action-btn--primary full-width" disabled>
+        ▶ Run Now
+      </button>
+    </div>
+
+    <!-- ── Footer ──────────────────────────────────── -->
+    <footer class="footer">
+      <button id="btnOpenSidePanel" class="link-btn">📊 Side Panel</button>
+      <button id="btnOpenDashboardFooter" class="link-btn">📋 Dashboard</button>
+    </footer>
+
+  </div>
+
+  <!-- Scripts: load shared libs then popup logic -->
+  <script src="../lib/constants.js"></script>
+  <script src="../lib/utils.js"></script>
+  <script src="../lib/messages.js"></script>
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/logger.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

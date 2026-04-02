@@ -3,21 +3,27 @@
   "name": "Prompt Chain Extension",
   "version": "0.1.0",
   "description": "Record action recipes on any AI chat site and replay prompt chains automatically.",
-
   "permissions": [
     "storage",
     "activeTab",
     "sidePanel",
     "notifications"
   ],
-
   "host_permissions": [
     "<all_urls>"
   ],
-
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Prompt Chain Extension"
+  },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "js": [
         "lib/constants.js",
         "lib/utils.js",

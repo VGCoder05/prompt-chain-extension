@@ -148,6 +148,8 @@
         };
       }
 
+      
+
       // Send button not found — try Enter key fallback
       console.warn('[Replayer] Send button not found — trying Enter key fallback');
       return this._enterKeyFallback(inputFingerprint);
@@ -334,6 +336,75 @@
       if (element.tagName === 'INPUT') return 'input';
       if (element.getAttribute('role') === 'textbox') return 'contenteditable';
       return 'unknown';
+    },
+
+     /**
+     * Verify that injected text is still present in the input.
+     * Returns the current text content, or empty string if cleared.
+     *
+     * @param {object} fingerprint - The targetInput fingerprint
+     * @returns {Promise<string>} current text in the input
+     */
+    async getInputText(fingerprint) {
+      const match = PC.SelectorEngine.find(fingerprint);
+      if (!match) return '';
+
+      const el = match.element;
+      const inputType = fingerprint._inputType || this._detectInputType(el);
+
+      if (inputType === 'contenteditable') {
+        return (el.innerText || el.textContent || '').trim();
+      }
+      return (el.value || '').trim();
+    },
+
+    /**
+     * Inject text and then verify it persisted.
+     * If the text gets cleared (by page JS, framework reset, etc.),
+     * retries injection up to maxAttempts times.
+     *
+     * @param {object} fingerprint - The targetInput fingerprint
+     * @param {string} text - Text to inject
+     * @param {object} [opts]
+     * @param {number} [opts.timeout] - Max wait for element
+     * @param {number} [opts.verifyAttempts] - Max re-inject attempts (default 3)
+     * @param {number} [opts.verifyDelay] - Delay before verifying (ms, default 200)
+     * @returns {Promise<object>} { success, confidence, method, inputType, verified }
+     */
+    async injectAndVerify(fingerprint, text, opts = {}) {
+      const verifyAttempts = opts.verifyAttempts || 3;
+      const verifyDelay = opts.verifyDelay || 200;
+
+      for (let attempt = 0; attempt < verifyAttempts; attempt++) {
+        const result = await this.injectText(fingerprint, text, opts);
+
+        if (!result.success) return result;
+
+        // Wait for framework to process
+        await PC.Utils.sleep(verifyDelay);
+
+        // Verify text persisted
+        const currentText = await this.getInputText(fingerprint);
+
+        if (currentText.length > 0) {
+          // Text is present — success
+          return { ...result, verified: true, verifyAttempt: attempt };
+        }
+
+        console.warn(
+          `[Replayer] Text was cleared after injection (attempt ${attempt + 1}/${verifyAttempts}) — re-injecting...`
+        );
+
+        // Small increasing delay before retry
+        await PC.Utils.sleep(300 * (attempt + 1));
+      }
+
+      // All verify attempts failed — text keeps getting cleared
+      return {
+        success: false,
+        error: `Text cleared after injection ${verifyAttempts} times — page may be resetting the input`,
+        verified: false,
+      };
     },
   };
 

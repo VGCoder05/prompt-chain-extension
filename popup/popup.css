@@ -1,0 +1,413 @@
+/**
+ * popup/popup.css
+ * ────────────────────────────────────────────
+ * Styles for the extension popup.
+ * Target size: ~380×500px
+ */
+
+/* ── Reset ───────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 380px;
+  min-height: 300px;
+  max-height: 560px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #e0e0e0;
+  background: #1a1a2e;
+  overflow-y: auto;
+}
+
+.popup {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* ── Header ──────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #2a2a4a;
+  background: #16162a;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo { font-size: 18px; }
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Status Bar (chain running) ──────────────────── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: #1e3a5f;
+  border-bottom: 1px solid #2a4a6f;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.status-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-icon { font-size: 14px; }
+
+.status-text {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.sm-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sm-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+.sm-btn--danger { border-color: rgba(255, 80, 80, 0.3); }
+.sm-btn--danger:hover { background: rgba(255, 80, 80, 0.2); }
+
+/* ── Status Bar States ───────────────────────────── */
+.status-bar--running { background: #1e3a5f; border-color: #2a4a6f; }
+.status-bar--paused  { background: #4a3a1e; border-color: #6f5a2a; }
+.status-bar--done    { background: #1e4a2e; border-color: #2a6f3a; }
+.status-bar--error   { background: #4a1e1e; border-color: #6f2a2a; }
+
+/* ── Tabs ────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #2a2a4a;
+  background: #16162a;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #888;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover { color: #bbb; }
+
+.tab--active {
+  color: #a78bfa;
+  border-bottom-color: #a78bfa;
+}
+
+/* ── Tab Content ─────────────────────────────────── */
+.tab-content {
+  display: none;
+  padding: 12px 14px;
+  flex: 1;
+}
+
+.tab-content--active { display: block; }
+
+/* ── Section Header ──────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+}
+
+/* ── Action Buttons ──────────────────────────────── */
+.action-btn {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #a78bfa;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.action-btn:hover { background: rgba(99, 102, 241, 0.25); }
+
+.action-btn--primary {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.action-btn--primary:hover { background: #4f46e5; }
+.action-btn--primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.full-width { width: 100%; margin-top: 10px; }
+
+/* ── List Items ──────────────────────────────────── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: #22223a;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+
+.list-item:hover { border-color: #3a3a5c; }
+
+.list-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.list-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-item-meta {
+  font-size: 11px;
+  color: #666;
+}
+
+.list-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.list-item-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ccc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.list-item-btn:hover { background: rgba(255, 255, 255, 0.12); }
+
+.list-item-btn--run {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+.list-item-btn--run:hover { background: rgba(34, 197, 94, 0.2); }
+
+.list-item-btn--delete {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.list-item-btn--delete:hover { background: rgba(248, 113, 113, 0.1); }
+
+/* ── Health Indicator ────────────────────────────── */
+.health-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.health-dot--healthy  { background: #4ade80; }
+.health-dot--degraded { background: #facc15; }
+.health-dot--broken   { background: #f87171; }
+.health-dot--unknown  { background: #666; }
+
+/* ── Empty State ─────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 24px 16px;
+  color: #666;
+}
+
+.empty-state p { margin-bottom: 6px; }
+
+/* ── Forms ───────────────────────────────────────── */
+.inline-form {
+  margin-top: 10px;
+  padding: 10px;
+  background: #1e1e36;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+}
+
+.form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  margin: 8px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.form-label .hint {
+  text-transform: none;
+  font-weight: 400;
+}
+
+.text-input,
+.select-input {
+  width: 100%;
+  padding: 7px 10px;
+  background: #16162a;
+  border: 1px solid #3a3a5c;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.text-input:focus,
+.select-input:focus,
+.textarea-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.textarea-input {
+  width: 100%;
+  padding: 7px 10px;
+  background: #16162a;
+  border: 1px solid #3a3a5c;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.form-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+.hint { font-size: 11px; color: #666; }
+
+/* ── Current Recipe Info ─────────────────────────── */
+.current-recipe {
+  padding: 8px 10px;
+  background: #22223a;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.current-recipe-name {
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+/* ── Footer ──────────────────────────────────────── */
+.footer {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 14px;
+  border-top: 1px solid #2a2a4a;
+  background: #16162a;
+  margin-top: auto;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color 0.15s;
+}
+
+.link-btn:hover { color: #a78bfa; }
+
+/* ── Scrollbar ───────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3a3a5c; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #4a4a6c; }
