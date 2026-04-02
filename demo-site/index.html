@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chat Simulator — Extension Test Page</title>
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body>
+
+  <div class="chat-app">
+
+    <!-- ── Header ──────────────────────────────────────── -->
+    <header class="chat-header">
+      <h1>🤖 AI Chat Simulator</h1>
+      <p class="subtitle">Test page for Prompt Chain Extension development</p>
+    </header>
+
+    <!-- ── Chat Messages Container ─────────────────────── -->
+    <div class="chat-messages" id="chatMessages">
+      <div class="message assistant-message">
+        <div class="message-avatar">🤖</div>
+        <div class="message-content">
+          <p>Hello! I'm a simulated AI assistant. Send me a message and I'll
+             generate a fake streaming response — complete with a "Stop Generating"
+             button that appears and disappears. Perfect for testing your
+             Prompt Chain Extension!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Input Area ──────────────────────────────────── -->
+    <div class="chat-input-area">
+
+      <!-- Stop button: hidden by default, shown during generation -->
+      <button
+        class="stop-button"
+        id="stopButton"
+        aria-label="Stop generating"
+        style="display: none;"
+      >
+        ⏹ Stop Generating
+      </button>
+
+      <form class="input-form" id="chatForm">
+        <textarea
+          id="promptTextarea"
+          class="prompt-input"
+          placeholder="Type your message here..."
+          rows="3"
+        ></textarea>
+        <button
+          type="submit"
+          class="send-button"
+          id="sendButton"
+          aria-label="Send message"
+        >
+          ▶ Send
+        </button>
+      </form>
+
+    </div>
+
+  </div>
+
+  <!-- ── Status Bar (for development visibility) ──────── -->
+  <div class="status-bar" id="statusBar">
+    Status: <span id="statusText">Idle — waiting for input</span>
+  </div>
+
+  <script src="demo.js"></script>
+</body>
+</html>

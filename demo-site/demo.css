@@ -1,0 +1,235 @@
+/**
+ * demo-site/demo.css
+ * ────────────────────────────────────────────
+ * Styles for the AI Chat Simulator test page.
+ * Dark theme, similar to common AI chat interfaces.
+ */
+
+/* ── Reset & Base ────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #1a1a2e;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Chat App Container ──────────────────────────────── */
+.chat-app {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 40px); /* Leave room for status bar */
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.chat-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #2a2a4a;
+  text-align: center;
+}
+
+.chat-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.chat-header .subtitle {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* ── Chat Messages ───────────────────────────────────── */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Individual Message ──────────────────────────────── */
+.message {
+  display: flex;
+  gap: 12px;
+  max-width: 90%;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.user-message {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.assistant-message {
+  align-self: flex-start;
+}
+
+.message-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  background: #2a2a4a;
+}
+
+.user-message .message-avatar {
+  background: #3b82f6;
+}
+
+.message-content {
+  background: #2a2a4a;
+  border-radius: 12px;
+  padding: 12px 16px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.user-message .message-content {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.message-content p {
+  margin-bottom: 8px;
+}
+
+.message-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Streaming Cursor (visible during generation) ────── */
+.streaming-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background-color: #a78bfa;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 0.6s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ── Input Area ──────────────────────────────────────── */
+.chat-input-area {
+  padding: 12px 20px 16px;
+  border-top: 1px solid #2a2a4a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.input-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: flex-end;
+}
+
+.prompt-input {
+  flex: 1;
+  background: #16162a;
+  border: 1px solid #3a3a5c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #e0e0e0;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+  min-height: 44px;
+  max-height: 150px;
+}
+
+.prompt-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.prompt-input::placeholder {
+  color: #666;
+}
+
+.send-button {
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.send-button:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.send-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Stop Button ─────────────────────────────────────── */
+.stop-button {
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  animation: fadeIn 0.2s ease;
+}
+
+.stop-button:hover {
+  background: #b91c1c;
+}
+
+/* ── Status Bar (development aid) ────────────────────── */
+.status-bar {
+  height: 40px;
+  background: #111128;
+  border-top: 1px solid #2a2a4a;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-size: 12px;
+  color: #888;
+}
+
+#statusText {
+  color: #a78bfa;
+  margin-left: 6px;
+}
