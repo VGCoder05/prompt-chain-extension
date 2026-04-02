@@ -59,6 +59,7 @@
      * Determine the correct handler for a message.
      */
     _getHandler(message, sender) {
+      console.log(message.type)
       switch (message.type) {
 
         // ── Commands FROM popup/sidepanel/dashboard → content script ──
@@ -106,10 +107,31 @@
         // ── Navigation commands ──
 
         case MSG.OPEN_DASHBOARD:
-          return () => this._openDashboard();
+          return (msg, snd, respond) => {
+            this._openDashboard();
+            respond({ success: true });
+          };
+
+        // case MSG.OPEN_SIDEPANEL:
+        //   return (msg, snd, respond) => {
+        //     this._openSidePanel()
+        //       .then(() => respond({ success: true }))
+        //       .catch((err) => respond({ success: false, error: err.message }));
+        //     return true; // keep channel open for async
+        //   };
 
         case MSG.OPEN_SIDEPANEL:
-          return () => this._openSidePanel();
+          return (msg, snd, respond) => {
+            // NOTE: sidePanel.open() requires direct user gesture context.
+            // This handler only works when called from contexts that preserve
+            // the gesture (e.g. chrome.action.onClicked). Popup/dashboard
+            // should call chrome.sidePanel.open() directly instead.
+            console.warn('[MessageHub] OPEN_SIDEPANEL received via message — gesture may be lost.');
+            this._openSidePanel()
+              .then(() => respond({ success: true }))
+              .catch((err) => respond({ success: false, error: err.message }));
+            return true;
+          };
 
         default:
           return null;
@@ -309,12 +331,15 @@
 
     async _openSidePanel() {
       try {
+        // const window = await chrome.windows.getCurrent();
+        // await chrome.sidePanel.open({ windowId: window.id });
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tab) {
           await chrome.sidePanel.open({ tabId: tab.id });
         }
       } catch (err) {
         console.warn('[MessageHub] Failed to open side panel:', err.message);
+        throw err;
       }
     },
   };

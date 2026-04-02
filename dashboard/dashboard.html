@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-color="teal">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt Chain Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!--  SIDEBAR                                       -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="sb" id="sidebar">
+
+      <!-- ── Logo ──────────────────────────────────── -->
+      <div class="sb-logo">
+        <div class="lm">🔗</div>
+        <div class="lt">Prompt<span>Chain</span></div>
+      </div>
+
+      <!-- ── Navigation ───────────────────────────── -->
+      <nav class="ng">
+        <div class="nl">Main</div>
+
+        <div class="ni active" data-target="view-dash">
+          <span class="nic">⊞</span> Dashboard
+        </div>
+
+        <div class="ni" data-target="view-lib">
+          <span class="nic">📁</span> My Library
+          <span class="nc" id="count-recipes">0</span>
+        </div>
+
+        <div class="ni" data-target="view-chains">
+          <span class="nic">⛓</span> Chains
+          <span class="nc" id="count-chains">0</span>
+        </div>
+      </nav>
+
+      <!-- ── Sidebar Footer ───────────────────────── -->
+      <div class="sb-foot">
+        <div class="uc" id="btnThemeToggle" title="Toggle Theme">
+          <div class="av">🎨</div>
+          <div class="uc-info">
+            <div class="un">Toggle Theme</div>
+            <div class="up">Light / Dark</div>
+          </div>
+        </div>
+        <div class="uc" id="btnColorToggle" title="Toggle Color">
+          <div class="av">🎯</div>
+          <div class="uc-info">
+            <div class="un">Toggle Color</div>
+            <div class="up">Teal / Orange</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!--  MAIN CONTENT                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="main">
+
+      <!-- ── Top Bar ───────────────────────────────── -->
+      <div class="tb">
+        <div class="bc">
+          Prompt Chain <span id="breadcrumb">/ Dashboard</span>
+        </div>
+        <div class="tb-search">
+          <input type="text" class="tb-search-input" id="globalSearch" placeholder="🔍 Search..." />
+        </div>
+        <div class="ta">
+          <button class="btn btnp" id="btnRecordNew">🎯 Record New Recipe</button>
+        </div>
+      </div>
+
+      <!-- ──────────────────────────────────────────── -->
+      <!--  VIEW: Dashboard (overview stats)             -->
+      <!-- ──────────────────────────────────────────── -->
+      <div class="ca view-section active" id="view-dash">
+
+        <!-- ── Stat Cards ──────────────────────────── -->
+        <div class="mrow">
+          <div class="mc">
+            <div class="ml">Total Recipes</div>
+            <div class="mv" id="stat-recipes">0</div>
+          </div>
+          <div class="mc">
+            <div class="ml">Total Chains</div>
+            <div class="mv" id="stat-chains">0</div>
+          </div>
+          <div class="mc">
+            <div class="ml">Runs Today</div>
+            <div class="mv" id="stat-runs-today">0</div>
+          </div>
+          <div class="mc">
+            <div class="ml">Status</div>
+            <div class="mv mv--accent" id="stat-status">Active</div>
+          </div>
+        </div>
+
+        <!-- ── Dashboard Content Grid ──────────────── -->
+        <div class="dash-split">
+
+          <!-- Recent Chains -->
+          <div class="card">
+            <div class="ch">
+              <span class="ct">Recent Chains</span>
+            </div>
+            <div class="card-body" id="dash-recent-chains">
+              <div class="card-empty">Loading...</div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="card">
+            <div class="ch">
+              <span class="ct">Quick Actions</span>
+            </div>
+            <div class="card-body" id="dash-quick-actions">
+              <button class="dash-action-btn" id="dashBtnRecord">
+                <span class="dash-action-icon">🎯</span>
+                <span class="dash-action-label">Record Recipe</span>
+              </button>
+              <button class="dash-action-btn" id="dashBtnNewChain">
+                <span class="dash-action-icon">⛓</span>
+                <span class="dash-action-label">New Chain</span>
+              </button>
+              <button class="dash-action-btn" id="dashBtnExport">
+                <span class="dash-action-icon">📤</span>
+                <span class="dash-action-label">Export All</span>
+              </button>
+              <button class="dash-action-btn" id="dashBtnImport">
+                <span class="dash-action-icon">📥</span>
+                <span class="dash-action-label">Import</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ──────────────────────────────────────────── -->
+      <!--  VIEW: My Library (recipes)                   -->
+      <!-- ──────────────────────────────────────────── -->
+      <div class="view-section" id="view-lib">
+
+        <!-- ── Library Header ──────────────────────── -->
+        <div class="view-header">
+          <span class="view-header-title">Recorded Recipes</span>
+          <div class="view-header-actions">
+            <button class="btn" id="btnRefreshRecipes">🔄 Refresh</button>
+            <button class="btn btnp" id="btnRecordFromLib">🎯 Record New</button>
+          </div>
+        </div>
+
+        <!-- ── Recipe List ─────────────────────────── -->
+        <div class="view-body" id="library-list">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- ── Empty State ─────────────────────────── -->
+        <div class="view-empty" id="library-empty" style="display:none;">
+          <div class="view-empty-icon">📁</div>
+          <p>No recipes recorded yet.</p>
+          <p class="hint">Navigate to an AI chat site and click <strong>🎯 Record New Recipe</strong> to get started.</p>
+        </div>
+      </div>
+
+      <!-- ──────────────────────────────────────────── -->
+      <!--  VIEW: Chains                                 -->
+      <!-- ──────────────────────────────────────────── -->
+      <div class="view-section" id="view-chains">
+        <div class="chain-layout">
+
+          <!-- ── Chain Sidebar (list) ──────────────── -->
+          <div class="chain-sidebar">
+            <div class="chain-sidebar-header">
+              <span class="chain-sidebar-title">Saved Chains</span>
+              <button class="btn" id="btnNewChain">+ New</button>
+            </div>
+
+            <div class="chain-sidebar-search">
+              <input type="text" class="chain-search-input" id="chainSearch" placeholder="🔍 Filter chains..." />
+            </div>
+
+            <div class="chain-sidebar-list" id="chain-sidebar-list">
+              <!-- Populated by JS -->
+            </div>
+
+            <div class="chain-sidebar-empty" id="chain-sidebar-empty" style="display:none;">
+              <p>No chains yet.</p>
+            </div>
+          </div>
+
+          <!-- ── Chain Builder / Detail (right pane) ── -->
+          <div class="chain-builder" id="chain-builder">
+
+            <!-- Default state (nothing selected) -->
+            <div class="chain-builder-empty" id="chain-builder-empty">
+              <div class="chain-builder-empty-icon">⛓</div>
+              <p>Select a chain or create a new one.</p>
+              <button class="btn btnp" id="btnNewChainAlt">+ Create New Chain</button>
+            </div>
+
+            <!-- Chain Editor (shown when chain is selected) -->
+            <div class="chain-editor" id="chain-editor" style="display:none;">
+
+              <!-- Chain Name -->
+              <div class="chain-editor-header">
+                <input type="text" class="chain-name-input" id="chainEditorName" placeholder="Chain name..." />
+                <div class="chain-editor-actions">
+                  <button class="btn btnp" id="btnRunChain" title="Run this chain">▶ Run</button>
+                  <button class="btn btn--danger" id="btnDeleteChain" title="Delete this chain">🗑️ Delete</button>
+                </div>
+              </div>
+
+              <!-- Recipe Select -->
+              <div class="chain-field">
+                <label class="chain-field-label">Recipe</label>
+                <select class="chain-field-select" id="chainEditorRecipe">
+                  <option value="">-- Select a recipe --</option>
+                </select>
+              </div>
+
+              <!-- Prompt List -->
+              <div class="chain-field">
+                <label class="chain-field-label">
+                  Prompts
+                  <span class="chain-prompt-count" id="chainEditorPromptCount">(0)</span>
+                </label>
+                <div class="chain-prompts" id="chainEditorPrompts">
+                  <!-- Populated by JS: sortable prompt items -->
+                </div>
+                <button class="btn chain-add-prompt-btn" id="btnAddPrompt">+ Add Prompt</button>
+              </div>
+
+              <!-- Save -->
+              <div class="chain-editor-footer">
+                <button class="btn btnp" id="btnSaveChainEditor">💾 Save Chain</button>
+                <button class="btn" id="btnCancelChainEditor">Cancel</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div><!-- .main -->
+  </div><!-- .app -->
+
+  <!-- Scripts: load shared libs then dashboard logic -->
+  <script src="../lib/constants.js"></script>
+  <script src="../lib/utils.js"></script>
+  <script src="../lib/messages.js"></script>
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/logger.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

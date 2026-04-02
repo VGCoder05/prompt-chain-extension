@@ -1,7 +1,7 @@
 /**
  * popup/popup.js
  * ────────────────────────────────────────────
- * Popup UI logic.
+ * Redesigned Popup UI logic.
  *
  * Responsibilities:
  *   - List saved recipes (with health status)
@@ -11,6 +11,9 @@
  *   - Start/cancel recording
  *   - Show active chain status with pause/resume/cancel
  *   - Open dashboard / side panel
+ *   - Theming (light/dark, teal/orange)
+ *   - Search filtering across recipes & chains
+ *   - Connection status for current tab
  *
  * Does NOT execute chains — sends messages to background
  * which forwards to the content script.
@@ -18,47 +21,49 @@
 (() => {
   const MSG = PC.MessageTypes;
 
-  // ── DOM References ──────────────────────────────────────────────
+  // ── DOM Helpers ─────────────────────────────────────────────────
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
 
-  // Tabs
-  const tabs = $$('.tab');
-  const tabContents = $$('.tab-content');
+  // ── Core App State ──────────────────────────────────────────────
+  let currentFilter = 'recipes';
+  let currentTabDomain = null;
+  let _currentTabRecipe = null;  // recipe for Quick Run tab
 
+  // ── DOM References ──────────────────────────────────────────────
   // Status bar
-  const statusBar     = $('#statusBar');
-  const statusIcon    = $('#statusIcon');
-  const statusText    = $('#statusText');
-  const btnPause      = $('#btnPause');
-  const btnResume     = $('#btnResume');
-  const btnCancel     = $('#btnCancel');
+  const statusBar = $('#statusBar');
+  const statusIcon = $('#statusIcon');
+  const statusText = $('#statusText');
+  const btnPause = $('#btnPause');
+  const btnResume = $('#btnResume');
+  const btnCancel = $('#btnCancel');
 
-  // Recipes tab
-  const recipeList    = $('#recipeList');
-  const recipeEmpty   = $('#recipeEmpty');
-  const btnRecord     = $('#btnRecord');
+  // Panels
+  const panelRecipes = $('#panel-recipes');
+  const panelChains = $('#panel-chains');
+  const panelQuick = $('#panel-quick');
 
-  // Chains tab
-  const chainList     = $('#chainList');
-  const chainEmpty    = $('#chainEmpty');
-  const btnNewChain   = $('#btnNewChain');
-  const chainForm     = $('#chainForm');
-  const chainNameInput    = $('#chainNameInput');
+  // Recipes panel
+  const recipeList = $('#recipeList');
+  const recipeEmpty = $('#recipeEmpty');
+  const btnRecord = $('#btnRecord');
+
+  // Chains panel
+  const chainList = $('#chainList');
+  const chainEmpty = $('#chainEmpty');
+  const btnNewChain = $('#btnNewChain');
+  const chainForm = $('#chainForm');
+  const chainNameInput = $('#chainNameInput');
   const chainRecipeSelect = $('#chainRecipeSelect');
   const chainPromptsInput = $('#chainPromptsInput');
-  const btnSaveChain      = $('#btnSaveChain');
-  const btnCancelChain    = $('#btnCancelChain');
+  const btnSaveChain = $('#btnSaveChain');
+  const btnCancelChain = $('#btnCancelChain');
 
-  // Quick Run tab
+  // Quick Run panel
   const currentRecipeInfo = $('#currentRecipeInfo');
   const quickPromptsInput = $('#quickPromptsInput');
-  const btnQuickRun       = $('#btnQuickRun');
-
-  // Footer
-  const btnOpenDashboard       = $('#btnOpenDashboard');
-  const btnOpenDashboardFooter = $('#btnOpenDashboardFooter');
-  const btnOpenSidePanel       = $('#btnOpenSidePanel');
+  const btnQuickRun = $('#btnQuickRun');
 
 
   // ══════════════════════════════════════════════════════════════════
@@ -66,8 +71,10 @@
   // ══════════════════════════════════════════════════════════════════
 
   async function init() {
-    setupTabs();
+    initTheming();
+    setupFilterTabs();
     setupEventListeners();
+    await checkCurrentTab();
     await loadRecipes();
     await loadChains();
     await checkCurrentTabRecipe();
@@ -77,20 +84,93 @@
 
 
   // ══════════════════════════════════════════════════════════════════
-  //  TAB SWITCHING
+  //  THEMING
   // ══════════════════════════════════════════════════════════════════
 
-  function setupTabs() {
-    tabs.forEach((tab) => {
-      tab.addEventListener('click', () => {
-        tabs.forEach((t) => t.classList.remove('tab--active'));
-        tabContents.forEach((tc) => tc.classList.remove('tab-content--active'));
+  function initTheming() {
+    const htmlEl = document.documentElement;
+    const savedTheme = localStorage.getItem('pc_theme') || 'dark';
+    const savedColor = localStorage.getItem('pc_color') || 'teal';
 
-        tab.classList.add('tab--active');
-        const target = $(`#tab-${tab.dataset.tab}`);
-        if (target) target.classList.add('tab-content--active');
+    htmlEl.setAttribute('data-theme', savedTheme);
+    htmlEl.setAttribute('data-color', savedColor);
+
+    $('#btnToggleTheme').addEventListener('click', () => {
+      const next = htmlEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      htmlEl.setAttribute('data-theme', next);
+      localStorage.setItem('pc_theme', next);
+    });
+
+    $('#btnToggleColor').addEventListener('click', () => {
+      const next = htmlEl.getAttribute('data-color') === 'teal' ? 'orange' : 'teal';
+      htmlEl.setAttribute('data-color', next);
+      localStorage.setItem('pc_color', next);
+    });
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════
+  //  CONNECTION STATUS (current tab awareness)
+  // ══════════════════════════════════════════════════════════════════
+
+  async function checkCurrentTab() {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab) return;
+      currentTabDomain = new URL(tab.url).hostname;
+
+      const recipe = await PC.Storage.recipes.getByDomain(currentTabDomain);
+      const connStatus = $('#connStatus');
+      const connText = $('#currentDomain');
+
+      if (recipe) {
+        connStatus.classList.add('active');
+        connText.innerHTML = `${escapeHtml(currentTabDomain)} <span style="opacity:0.7">— Recipe Active</span>`;
+      } else {
+        connStatus.classList.remove('active');
+        connText.innerHTML = `${escapeHtml(currentTabDomain)} <span style="opacity:0.7">— No Recipe</span>`;
+      }
+    } catch (err) {
+      $('#currentDomain').textContent = 'Cannot access current tab';
+    }
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════
+  //  FILTER TAB SWITCHING
+  // ══════════════════════════════════════════════════════════════════
+
+  function setupFilterTabs() {
+    const filterBtns = $$('.fc2');
+
+    filterBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach((b) => b.classList.remove('on'));
+        btn.classList.add('on');
+        currentFilter = btn.dataset.filter;
+        showActivePanel();
       });
     });
+  }
+
+  function showActivePanel() {
+    // Hide all panels
+    panelRecipes.classList.remove('tab-content--active');
+    panelChains.classList.remove('tab-content--active');
+    panelQuick.classList.remove('tab-content--active');
+
+    // Show the selected one
+    switch (currentFilter) {
+      case 'recipes':
+        panelRecipes.classList.add('tab-content--active');
+        break;
+      case 'chains':
+        panelChains.classList.add('tab-content--active');
+        break;
+      case 'quick':
+        panelQuick.classList.add('tab-content--active');
+        break;
+    }
   }
 
 
@@ -116,10 +196,39 @@
     btnResume.addEventListener('click', () => PC.Messages.send(MSG.RESUME_CHAIN));
     btnCancel.addEventListener('click', () => PC.Messages.send(MSG.CANCEL_CHAIN));
 
-    // Navigation
-    btnOpenDashboard.addEventListener('click', () => PC.Messages.send(MSG.OPEN_DASHBOARD));
-    btnOpenDashboardFooter.addEventListener('click', () => PC.Messages.send(MSG.OPEN_DASHBOARD));
-    btnOpenSidePanel.addEventListener('click', () => PC.Messages.send(MSG.OPEN_SIDEPANEL));
+    // Navigation (header)
+    $('#btnOpenDashboard').addEventListener('click', () => PC.Messages.send(MSG.OPEN_DASHBOARD));
+    // $('#btnOpenSidePanel').addEventListener('click', () => PC.Messages.send(MSG.OPEN_SIDEPANEL));
+    $('#btnOpenSidePanel').addEventListener('click', openSidePanel);
+
+    // Navigation (footer)
+    $('#btnOpenDashboardFooter').addEventListener('click', () => PC.Messages.send(MSG.OPEN_DASHBOARD));
+    // $('#btnOpenSidePanelFooter').addEventListener('click', () => PC.Messages.send(MSG.OPEN_SIDEPANEL));
+    $('#btnOpenSidePanelFooter').addEventListener('click', openSidePanel);
+
+    // Search — filters visible items in the active panel
+    $('#searchInput').addEventListener('input', applySearch);
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════
+  //  SEARCH
+  // ══════════════════════════════════════════════════════════════════
+
+  function applySearch() {
+    const query = $('#searchInput').value.toLowerCase().trim();
+
+    // Filter recipe list items
+    recipeList.querySelectorAll('.list-item').forEach((item) => {
+      const text = item.textContent.toLowerCase();
+      item.style.display = text.includes(query) ? '' : 'none';
+    });
+
+    // Filter chain list items
+    chainList.querySelectorAll('.list-item').forEach((item) => {
+      const text = item.textContent.toLowerCase();
+      item.style.display = text.includes(query) ? '' : 'none';
+    });
   }
 
 
@@ -340,8 +449,6 @@
   //  QUICK RUN
   // ══════════════════════════════════════════════════════════════════
 
-  let _currentTabRecipe = null;
-
   async function checkCurrentTabRecipe() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -365,7 +472,7 @@
       } else {
         _currentTabRecipe = null;
         currentRecipeInfo.innerHTML = `
-          <span class="hint">No recipe for <strong>${escapeHtml(hostname)}</strong>. 
+          <span class="hint">No recipe for <strong>${escapeHtml(hostname)}</strong>.
           <a href="#" id="quickRecordLink">Record one</a>.</span>
         `;
         const link = $('#quickRecordLink');
@@ -557,7 +664,9 @@
 
       [MSG.RECORDING_COMPLETE]: () => {
         loadRecipes();
-        loadChains(); // Recipe select may need refresh
+        loadChains();       // Recipe select may need refresh
+        checkCurrentTab();  // Refresh connection status
+        checkCurrentTabRecipe(); // Refresh quick run recipe info
       },
     });
   }
@@ -574,8 +683,28 @@
     return div.innerHTML;
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  //  SIDE PANEL (must be called directly from user gesture)
+  // ══════════════════════════════════════════════════════════════════
+
+  async function openSidePanel() {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) {
+        alert('No active tab found.');
+        return;
+      }
+      await chrome.sidePanel.open({ tabId: tab.id });
+      window.close(); // close popup after opening side panel
+    } catch (err) {
+      console.warn('Failed to open side panel:', err);
+      alert(`Could not open side panel: ${err.message}`);
+    }
+  }
+
 
   // ── Start ───────────────────────────────────────────────────────
   init();
 
 })();
+

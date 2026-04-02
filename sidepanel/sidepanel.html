@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-color="teal">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt Chain — Monitor</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+
+  <div class="panel">
+
+    <!-- ── Header ──────────────────────────────────── -->
+    <header class="panel-header">
+      <div class="panel-header-left">
+        <span class="panel-logo">🔗</span>
+        <h1 class="panel-title">Chain Monitor</h1>
+      </div>
+      <div class="panel-header-right">
+        <button id="btnToggleTheme" class="panel-icon-btn" title="Toggle Light/Dark">🌙</button>
+        <button id="btnToggleColor" class="panel-icon-btn" title="Toggle Teal/Orange">🎨</button>
+        <button id="btnOpenDashboard" class="panel-icon-btn" title="Open Dashboard">📋</button>
+      </div>
+    </header>
+
+    <!-- ── Idle State ──────────────────────────────── -->
+    <div class="panel-section" id="idleState">
+      <div class="idle-content">
+        <div class="idle-icon">⏳</div>
+        <p class="idle-title">No active chain</p>
+        <p class="idle-hint">Start a chain from the popup or dashboard to see live progress here.</p>
+      </div>
+    </div>
+
+    <!-- ── Active Chain View ───────────────────────── -->
+    <div class="panel-section" id="activeState" style="display:none;">
+
+      <!-- Chain Info -->
+      <div class="chain-info" id="chainInfo">
+        <div class="chain-name" id="chainName">Chain Name</div>
+        <div class="chain-meta" id="chainMeta">0 prompts · domain.com</div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls" id="controls">
+        <button id="ctrlPause" class="ctrl-btn ctrl-btn--pause" title="Pause">⏸ Pause</button>
+        <button id="ctrlResume" class="ctrl-btn ctrl-btn--resume" title="Resume" style="display:none;">▶ Resume</button>
+        <button id="ctrlCancel" class="ctrl-btn ctrl-btn--cancel" title="Cancel">⏹ Cancel</button>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="progress-section">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+        </div>
+        <div class="progress-text" id="progressText">0 / 0</div>
+      </div>
+
+      <!-- Elapsed Time -->
+      <div class="elapsed" id="elapsed">Elapsed: 0s</div>
+
+      <!-- Step List -->
+      <div class="steps-header">Steps</div>
+      <div class="steps-list" id="stepsList">
+        <!-- Populated by JS -->
+      </div>
+
+    </div>
+
+    <!-- ── Completed State ─────────────────────────── -->
+    <div class="panel-section" id="completedState" style="display:none;">
+
+      <div class="result-banner" id="resultBanner">
+        <span class="result-icon" id="resultIcon">✅</span>
+        <span class="result-text" id="resultText">Chain Complete!</span>
+      </div>
+
+      <div class="result-stats" id="resultStats">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Step List (shows final results) -->
+      <div class="steps-header">Results</div>
+      <div class="steps-list" id="completedStepsList">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="result-actions">
+        <button id="btnRunAgain" class="ctrl-btn ctrl-btn--resume">🔄 Run Again</button>
+        <button id="btnViewLogs" class="ctrl-btn ctrl-btn--pause">📊 View Logs</button>
+      </div>
+
+    </div>
+
+    <!-- ── Log Stream (always visible at bottom) ───── -->
+    <div class="log-section">
+      <div class="log-header">
+        <span>Live Log</span>
+        <button id="btnClearLog" class="log-clear-btn" title="Clear">✕</button>
+      </div>
+      <div class="log-stream" id="logStream">
+        <div class="log-entry log-entry--info">
+          <span class="log-time">--:--:--</span>
+          <span class="log-msg">Waiting for activity...</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="../lib/constants.js"></script>
+  <script src="../lib/utils.js"></script>
+  <script src="../lib/messages.js"></script>
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/logger.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

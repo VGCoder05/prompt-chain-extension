@@ -7,7 +7,8 @@
     "storage",
     "activeTab",
     "sidePanel",
-    "notifications"
+    "notifications",
+    "sidePanel"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -18,6 +19,9 @@
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Prompt Chain Extension"
+  },
+    "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
   },
   "content_scripts": [
     {

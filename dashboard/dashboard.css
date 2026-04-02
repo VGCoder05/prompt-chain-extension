@@ -1,0 +1,1278 @@
+/**
+ * dashboard/dashboard.css
+ * ────────────────────────────────────────────
+ * Unified Design System for Dashboard
+ * Supports Light/Dark Mode + Teal/Orange Themes
+ *
+ * Sections:
+ *   1. Fonts
+ *   2. Theme Variables (Teal + Orange, Light + Dark)
+ *   3. Base & Reset
+ *   4. App Shell
+ *   5. Sidebar
+ *   6. Sidebar Navigation
+ *   7. Sidebar Footer
+ *   8. Main Area
+ *   9. Top Bar
+ *  10. Buttons
+ *  11. View Sections
+ *  12. Dashboard View — Stat Cards
+ *  13. Dashboard View — Cards
+ *  14. Dashboard View — Quick Actions
+ *  15. Dashboard View — Split Layout
+ *  16. Library View — Header, Body, Empty
+ *  17. Library View — Recipe Items
+ *  18. Health Dots
+ *  19. Chains View — Layout
+ *  20. Chains View — Sidebar
+ *  21. Chains View — Builder / Empty
+ *  22. Chains View — Editor
+ *  23. Chains View — Prompt Items
+ *  24. Pills / Tags
+ *  25. Hints
+ *  26. Scrollbar
+ */
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   1. FONTS
+   ═══════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,400;0,600;1,300&family=Onest:wght@300;400;500;600&display=swap');
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   2. THEME VARIABLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── TEAL (Light) ── */
+[data-color="teal"] {
+  --bg: #F1F4F5;
+  --surface: #FAFCFC;
+  --surface2: #EBF0EF;
+  --surface3: #DFE6E5;
+  --border: #CDD6D4;
+  --border2: #B3BFC0;
+  --ink: #141A1A;
+  --ink2: #3E4A4A;
+  --ink3: #7E8A8A;
+  --accent: #0C6E80;
+  --accent2: #12A2B8;
+  --accent-light: #E4F4F7;
+  --accent-glow: rgba(12, 110, 128, 0.14);
+  --warn: #7A5A1E;
+  --warn-light: #FDF2E6;
+  --danger: #DC3545;
+  --danger-light: #FDE8EA;
+  --success: #16A34A;
+  --success-light: #E8F8EE;
+  --tag-bg: #DFE5E3;
+  --blue: #1E3A5F;
+  --blue-light: #E6EEF7;
+  --r: 6px;
+  --r2: 10px;
+  --r3: 14px;
+}
+
+/* ── TEAL (Dark) ── */
+[data-color="teal"][data-theme="dark"] {
+  --bg: #0B0D0E;
+  --surface: #111415;
+  --surface2: #191C1E;
+  --surface3: #202426;
+  --border: #242829;
+  --border2: #303537;
+  --ink: #DEE3E6;
+  --ink2: #96A0A2;
+  --ink3: #4C5456;
+  --accent: #18B8CA;
+  --accent2: #40D4E2;
+  --accent-light: #0D181C;
+  --accent-glow: rgba(24, 184, 202, 0.12);
+  --warn: #C8883A;
+  --warn-light: #14100A;
+  --danger: #F87171;
+  --danger-light: #1C0A0A;
+  --success: #4ADE80;
+  --success-light: #0A1A10;
+  --tag-bg: #1A1E20;
+  --blue: #6FA4D4;
+  --blue-light: #0C1A26;
+}
+
+/* ── ORANGE (Light) ── */
+[data-color="orange"] {
+  --bg: #F5F2F0;
+  --surface: #FDFCFB;
+  --surface2: #EDE8E4;
+  --surface3: #E2DAD4;
+  --border: #CCC4BC;
+  --border2: #B0A89E;
+  --ink: #1A1614;
+  --ink2: #484038;
+  --ink3: #888078;
+  --accent: #CC4400;
+  --accent2: #EE6622;
+  --accent-light: #FFF0E8;
+  --accent-glow: rgba(238, 102, 34, 0.16);
+  --warn: #AA2244;
+  --warn-light: #FFEEEE;
+  --danger: #DC3545;
+  --danger-light: #FDE8EA;
+  --success: #16A34A;
+  --success-light: #E8F8EE;
+  --tag-bg: #E2DAD4;
+  --blue: #2A4A6A;
+  --blue-light: #E4EAF0;
+  --r: 4px;
+  --r2: 6px;
+  --r3: 8px;
+}
+
+/* ── ORANGE (Dark) ── */
+[data-color="orange"][data-theme="dark"] {
+  --bg: #0C0B0A;
+  --surface: #141210;
+  --surface2: #1E1B18;
+  --surface3: #282420;
+  --border: #302C28;
+  --border2: #403C36;
+  --ink: #F0EAE4;
+  --ink2: #A89C90;
+  --ink3: #585048;
+  --accent: #FF6622;
+  --accent2: #FF8844;
+  --accent-light: #1A0C06;
+  --accent-glow: rgba(255, 102, 34, 0.16);
+  --warn: #EE2244;
+  --warn-light: #180408;
+  --danger: #F87171;
+  --danger-light: #1C0A0A;
+  --success: #4ADE80;
+  --success-light: #0A1A10;
+  --tag-bg: #201C18;
+  --blue: #8AAAC8;
+  --blue-light: #0C1018;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   3. BASE & RESET
+   ═══════════════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Onest', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   4. APP SHELL
+   ═══════════════════════════════════════════════════════════════════ */
+
+.app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   5. SIDEBAR
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sb {
+  width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.sb-logo {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lm {
+  width: 26px;
+  height: 26px;
+  background: var(--accent);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.lt {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.lt span {
+  font-weight: 300;
+  color: var(--ink3);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   6. SIDEBAR NAVIGATION
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ng {
+  padding: 6px 0;
+  flex: 1;
+}
+
+.nl {
+  padding: 10px 16px 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--ink3);
+  letter-spacing: 0.08em;
+}
+
+.ni {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--ink2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+  user-select: none;
+}
+
+.ni:hover {
+  background: var(--surface2);
+  color: var(--ink);
+}
+
+.ni.active {
+  background: var(--accent-light);
+  color: var(--accent2);
+  font-weight: 500;
+}
+
+.ni.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  background: var(--accent2);
+  border-radius: 0 2px 2px 0;
+}
+
+.nic {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.nc {
+  margin-left: auto;
+  background: var(--tag-bg);
+  color: var(--ink3);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 400;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   7. SIDEBAR FOOTER
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sb-foot {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.uc {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.uc:hover {
+  background: var(--surface2);
+}
+
+.av {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: var(--accent);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.uc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.un {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.up {
+  font-size: 10px;
+  color: var(--ink3);
+  line-height: 1.3;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   8. MAIN AREA
+   ═══════════════════════════════════════════════════════════════════ */
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  min-width: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   9. TOP BAR
+   ═══════════════════════════════════════════════════════════════════ */
+
+.tb {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.bc {
+  font-size: 12px;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.bc span {
+  color: var(--ink3);
+  font-weight: 400;
+}
+
+.tb-search {
+  flex: 1;
+  max-width: 360px;
+}
+
+.tb-search-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-size: 11px;
+  color: var(--ink);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tb-search-input::placeholder {
+  color: var(--ink3);
+}
+
+.tb-search-input:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.ta {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   10. BUTTONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.btn {
+  padding: 6px 14px;
+  border-radius: var(--r);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink2);
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.btn:hover {
+  background: var(--surface2);
+  color: var(--ink);
+}
+
+.btnp {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btnp:hover {
+  background: var(--accent2);
+  border-color: var(--accent2);
+}
+
+.btnp:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+
+.btn--danger:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   11. VIEW SECTIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.view-section {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+}
+
+.view-section.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dashboard view uses block-level scrolling */
+.ca {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   12. DASHBOARD VIEW — STAT CARDS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.mrow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.mc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 16px;
+}
+
+.ml {
+  font-size: 11px;
+  color: var(--ink3);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mv {
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+}
+
+.mv--accent {
+  color: var(--accent2);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   13. DASHBOARD VIEW — CARDS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  overflow: hidden;
+}
+
+.ch {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ct {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.card-body {
+  padding: 12px 16px;
+}
+
+.card-empty {
+  text-align: center;
+  color: var(--ink3);
+  font-size: 11px;
+  padding: 16px 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   14. DASHBOARD VIEW — QUICK ACTIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.dash-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink2);
+  transition: all 0.15s;
+  text-align: left;
+}
+
+.dash-action-btn:last-child {
+  margin-bottom: 0;
+}
+
+.dash-action-btn:hover {
+  background: var(--surface3);
+  color: var(--ink);
+  border-color: var(--border2);
+}
+
+.dash-action-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.dash-action-label {
+  font-weight: 500;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   15. DASHBOARD VIEW — SPLIT LAYOUT
+   ═══════════════════════════════════════════════════════════════════ */
+
+.dash-split {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 14px;
+}
+
+/* Dashboard recent chain items */
+.dash-chain-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+
+.dash-chain-item:last-child {
+  border-bottom: none;
+}
+
+.dash-chain-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dash-chain-meta {
+  color: var(--ink3);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   16. LIBRARY VIEW — HEADER, BODY, EMPTY
+   ═══════════════════════════════════════════════════════════════════ */
+
+.view-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.view-header-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  flex: 1;
+}
+
+.view-header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.view-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.view-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink3);
+  font-size: 12px;
+}
+
+.view-empty-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.view-empty p {
+  margin-bottom: 6px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   17. LIBRARY VIEW — RECIPE ITEMS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.pr {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  transition: background 0.15s;
+}
+
+.pr:hover {
+  background: var(--surface2);
+}
+
+.pr-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pt {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ps {
+  font-size: 11px;
+  color: var(--ink3);
+  font-family: 'DM Mono', monospace;
+}
+
+.pm {
+  font-size: 10px;
+  color: var(--ink3);
+  margin-top: 6px;
+  display: flex;
+  gap: 12px;
+}
+
+.pr-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   18. HEALTH DOTS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  background: var(--ink3);
+}
+
+.health-dot--good {
+  background: var(--success);
+  box-shadow: 0 0 4px rgba(22, 163, 74, 0.3);
+}
+
+.health-dot--warning {
+  background: var(--warn);
+  box-shadow: 0 0 4px rgba(202, 138, 4, 0.3);
+}
+
+.health-dot--bad {
+  background: var(--danger);
+  box-shadow: 0 0 4px rgba(220, 53, 69, 0.3);
+}
+
+.health-dot--unknown {
+  background: var(--ink3);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   19. CHAINS VIEW — LAYOUT
+   ═══════════════════════════════════════════════════════════════════ */
+
+.chain-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   20. CHAINS VIEW — SIDEBAR
+   ═══════════════════════════════════════════════════════════════════ */
+
+.chain-sidebar {
+  width: 280px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.chain-sidebar-header {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.chain-sidebar-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink2);
+}
+
+.chain-sidebar-search {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chain-search-input {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-size: 11px;
+  color: var(--ink);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.chain-search-input::placeholder {
+  color: var(--ink3);
+}
+
+.chain-search-input:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.chain-sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.chain-sidebar-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--ink3);
+  font-size: 11px;
+}
+
+/* Chain sidebar item */
+.chain-sidebar-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.chain-sidebar-item:hover {
+  background: var(--surface2);
+}
+
+.chain-sidebar-item.active {
+  background: var(--accent-light);
+  border-left: 3px solid var(--accent2);
+}
+
+.chain-sidebar-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.chain-sidebar-item-meta {
+  font-size: 10px;
+  color: var(--ink3);
+  font-family: 'DM Mono', monospace;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   21. CHAINS VIEW — BUILDER / EMPTY STATE
+   ═══════════════════════════════════════════════════════════════════ */
+
+.chain-builder {
+  flex: 1;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.chain-builder-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--ink3);
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.chain-builder-empty-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.chain-builder-empty p {
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   22. CHAINS VIEW — EDITOR
+   ═══════════════════════════════════════════════════════════════════ */
+
+.chain-editor {
+  padding: 20px;
+  flex: 1;
+}
+
+.chain-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.chain-name-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface2);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.chain-name-input:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.chain-editor-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.chain-field {
+  margin-bottom: 16px;
+}
+
+.chain-field-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink3);
+  margin-bottom: 6px;
+}
+
+.chain-field-select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface2);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.chain-field-select:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.chain-prompt-count {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink3);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   23. CHAINS VIEW — PROMPT ITEMS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.chain-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.chain-prompt-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  transition: border-color 0.15s;
+}
+
+.chain-prompt-item:hover {
+  border-color: var(--border2);
+}
+
+.chain-prompt-item.dragging {
+  opacity: 0.5;
+  border-color: var(--accent2);
+}
+
+.chain-prompt-number {
+  width: 22px;
+  height: 22px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.chain-prompt-textarea {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  color: var(--ink);
+  background: transparent;
+  outline: none;
+  resize: vertical;
+  min-height: 36px;
+  line-height: 1.5;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.chain-prompt-textarea:focus {
+  border-color: var(--accent2);
+  background: var(--surface2);
+}
+
+.chain-prompt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.chain-prompt-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--ink3);
+  transition: color 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.chain-prompt-btn:hover {
+  color: var(--ink);
+  background: var(--surface3);
+}
+
+.chain-prompt-btn--delete:hover {
+  color: var(--danger);
+  background: var(--danger-light);
+}
+
+.chain-prompt-btn--drag {
+  cursor: grab;
+}
+
+.chain-prompt-btn--drag:active {
+  cursor: grabbing;
+}
+
+.chain-add-prompt-btn {
+  width: 100%;
+  padding: 8px;
+  text-align: center;
+  border-style: dashed;
+  color: var(--ink3);
+}
+
+.chain-add-prompt-btn:hover {
+  color: var(--accent2);
+  border-color: var(--accent2);
+  background: var(--accent-light);
+}
+
+.chain-editor-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   24. PILLS / TAGS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.pill {
+  font-size: 10px;
+  padding: 2px 7px;
+  background: var(--tag-bg);
+  border-radius: 10px;
+  color: var(--ink3);
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.pill.g {
+  background: var(--accent-light);
+  color: var(--accent2);
+}
+
+.pill.b {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.pill.w {
+  background: var(--warn-light);
+  color: var(--warn);
+}
+
+.pill.d {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   25. HINTS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.hint {
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+.hint a {
+  color: var(--accent2);
+  text-decoration: none;
+}
+
+.hint a:hover {
+  text-decoration: underline;
+}
+
+.hint strong {
+  color: var(--ink2);
+  font-weight: 600;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   26. SCROLLBAR
+   ═══════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink3);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE (narrow screens / popup reuse)
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .sb {
+    width: 56px;
+  }
+
+  .sb-logo .lt,
+  .nl,
+  .nc,
+  .uc-info {
+    display: none;
+  }
+
+  .ni {
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .nic {
+    width: auto;
+  }
+
+  .chain-sidebar {
+    width: 200px;
+  }
+
+  .mrow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dash-split {
+    grid-template-columns: 1fr;
+  }
+}

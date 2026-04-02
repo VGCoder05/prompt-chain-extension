@@ -1,0 +1,729 @@
+/**
+ * sidepanel/sidepanel.css
+ * ────────────────────────────────────────────
+ * Live execution monitor side panel.
+ * Uses the shared theme system (Light/Dark + Teal/Orange).
+ *
+ * Sections:
+ *   1. Theme Variables (Teal + Orange, Light + Dark)
+ *   2. Base & Reset
+ *   3. Panel Shell
+ *   4. Header
+ *   5. Panel Sections
+ *   6. Idle State
+ *   7. Chain Info
+ *   8. Controls (Pause / Resume / Cancel)
+ *   9. Progress Bar
+ *  10. Elapsed Timer
+ *  11. Steps List
+ *  12. Result Banner
+ *  13. Result Stats
+ *  14. Result Actions
+ *  15. Log Stream
+ *  16. Scrollbar
+ */
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   1. THEME VARIABLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── TEAL (Light) ── */
+[data-color="teal"] {
+  --bg: #F1F4F5;
+  --surface: #FAFCFC;
+  --surface2: #EBF0EF;
+  --surface3: #DFE6E5;
+  --border: #CDD6D4;
+  --border2: #B3BFC0;
+  --ink: #141A1A;
+  --ink2: #3E4A4A;
+  --ink3: #7E8A8A;
+  --accent: #0C6E80;
+  --accent2: #12A2B8;
+  --accent-light: #E4F4F7;
+  --accent-glow: rgba(12, 110, 128, 0.14);
+  --warn: #7A5A1E;
+  --warn-light: #FDF2E6;
+  --danger: #DC3545;
+  --danger-light: #FDE8EA;
+  --success: #16A34A;
+  --success-light: #E8F8EE;
+  --tag-bg: #DFE5E3;
+  --blue: #1E3A5F;
+  --blue-light: #E6EEF7;
+  --progress: #6366f1;
+  --progress2: #a78bfa;
+  --progress-done: #22c55e;
+  --progress-done2: #4ade80;
+  --progress-error: #ef4444;
+  --progress-error2: #f87171;
+  --log-bg: #F0F2F3;
+  --log-border: #DDE2E1;
+  --r: 6px;
+  --r2: 10px;
+  --r3: 14px;
+}
+
+/* ── TEAL (Dark) ── */
+[data-color="teal"][data-theme="dark"] {
+  --bg: #0B0D0E;
+  --surface: #111415;
+  --surface2: #191C1E;
+  --surface3: #202426;
+  --border: #242829;
+  --border2: #303537;
+  --ink: #DEE3E6;
+  --ink2: #96A0A2;
+  --ink3: #4C5456;
+  --accent: #18B8CA;
+  --accent2: #40D4E2;
+  --accent-light: #0D181C;
+  --accent-glow: rgba(24, 184, 202, 0.12);
+  --warn: #C8883A;
+  --warn-light: #14100A;
+  --danger: #F87171;
+  --danger-light: #1C0A0A;
+  --success: #4ADE80;
+  --success-light: #0A1A10;
+  --tag-bg: #1A1E20;
+  --blue: #6FA4D4;
+  --blue-light: #0C1A26;
+  --progress: #6366f1;
+  --progress2: #a78bfa;
+  --progress-done: #22c55e;
+  --progress-done2: #4ade80;
+  --progress-error: #ef4444;
+  --progress-error2: #f87171;
+  --log-bg: #0A0C0D;
+  --log-border: #1A1E20;
+}
+
+/* ── ORANGE (Light) ── */
+[data-color="orange"] {
+  --bg: #F5F2F0;
+  --surface: #FDFCFB;
+  --surface2: #EDE8E4;
+  --surface3: #E2DAD4;
+  --border: #CCC4BC;
+  --border2: #B0A89E;
+  --ink: #1A1614;
+  --ink2: #484038;
+  --ink3: #888078;
+  --accent: #CC4400;
+  --accent2: #EE6622;
+  --accent-light: #FFF0E8;
+  --accent-glow: rgba(238, 102, 34, 0.16);
+  --warn: #AA2244;
+  --warn-light: #FFEEEE;
+  --danger: #DC3545;
+  --danger-light: #FDE8EA;
+  --success: #16A34A;
+  --success-light: #E8F8EE;
+  --tag-bg: #E2DAD4;
+  --blue: #2A4A6A;
+  --blue-light: #E4EAF0;
+  --progress: #CC4400;
+  --progress2: #EE6622;
+  --progress-done: #16A34A;
+  --progress-done2: #22C55E;
+  --progress-error: #DC3545;
+  --progress-error2: #EF4444;
+  --log-bg: #F0EDEB;
+  --log-border: #DDD8D4;
+  --r: 4px;
+  --r2: 6px;
+  --r3: 8px;
+}
+
+/* ── ORANGE (Dark) ── */
+[data-color="orange"][data-theme="dark"] {
+  --bg: #0C0B0A;
+  --surface: #141210;
+  --surface2: #1E1B18;
+  --surface3: #282420;
+  --border: #302C28;
+  --border2: #403C36;
+  --ink: #F0EAE4;
+  --ink2: #A89C90;
+  --ink3: #585048;
+  --accent: #FF6622;
+  --accent2: #FF8844;
+  --accent-light: #1A0C06;
+  --accent-glow: rgba(255, 102, 34, 0.16);
+  --warn: #EE2244;
+  --warn-light: #180408;
+  --danger: #F87171;
+  --danger-light: #1C0A0A;
+  --success: #4ADE80;
+  --success-light: #0A1A10;
+  --tag-bg: #201C18;
+  --blue: #8AAAC8;
+  --blue-light: #0C1018;
+  --progress: #FF6622;
+  --progress2: #FF8844;
+  --progress-done: #4ADE80;
+  --progress-done2: #22C55E;
+  --progress-error: #F87171;
+  --progress-error2: #EF4444;
+  --log-bg: #0A0908;
+  --log-border: #1C1A18;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   2. BASE & RESET
+   ═══════════════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--bg);
+  height: 100vh;
+  overflow: hidden;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   3. PANEL SHELL
+   ═══════════════════════════════════════════════════════════════════ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   4. HEADER
+   ═══════════════════════════════════════════════════════════════════ */
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-logo {
+  font-size: 16px;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.panel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.panel-icon-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--r);
+  color: var(--ink2);
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.panel-icon-btn:hover {
+  background: var(--surface3);
+  color: var(--ink);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   5. PANEL SECTIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.panel-section {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   6. IDLE STATE
+   ═══════════════════════════════════════════════════════════════════ */
+
+.idle-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.idle-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.idle-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink2);
+  margin-bottom: 8px;
+}
+
+.idle-hint {
+  font-size: 12px;
+  color: var(--ink3);
+  line-height: 1.5;
+  max-width: 250px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   7. CHAIN INFO
+   ═══════════════════════════════════════════════════════════════════ */
+
+.chain-info {
+  margin-bottom: 12px;
+}
+
+.chain-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.chain-meta {
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   8. CONTROLS (Pause / Resume / Cancel)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ctrl-btn {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.ctrl-btn:hover {
+  background: var(--surface3);
+}
+
+.ctrl-btn--pause {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.ctrl-btn--pause:hover {
+  background: var(--warn-light);
+}
+
+.ctrl-btn--resume {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.ctrl-btn--resume:hover {
+  background: var(--success-light);
+}
+
+.ctrl-btn--cancel {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ctrl-btn--cancel:hover {
+  background: var(--danger-light);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   9. PROGRESS BAR
+   ═══════════════════════════════════════════════════════════════════ */
+
+.progress-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.progress-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--surface3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--progress), var(--progress2));
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.progress-bar-fill--done {
+  background: linear-gradient(90deg, var(--progress-done), var(--progress-done2));
+}
+
+.progress-bar-fill--error {
+  background: linear-gradient(90deg, var(--progress-error), var(--progress-error2));
+}
+
+.progress-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent2);
+  white-space: nowrap;
+  min-width: 40px;
+  text-align: right;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   10. ELAPSED TIMER
+   ═══════════════════════════════════════════════════════════════════ */
+
+.elapsed {
+  font-size: 11px;
+  color: var(--ink3);
+  margin-bottom: 14px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   11. STEPS LIST
+   ═══════════════════════════════════════════════════════════════════ */
+
+.steps-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink3);
+  margin-bottom: 8px;
+}
+
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.step-item--active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+
+.step-item--done {
+  border-color: var(--success);
+  border-left-width: 3px;
+}
+
+.step-item--failed {
+  border-color: var(--danger);
+  border-left-width: 3px;
+}
+
+.step-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.step-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-detail {
+  font-size: 11px;
+  color: var(--ink3);
+  margin-top: 2px;
+}
+
+.step-duration {
+  font-size: 11px;
+  color: var(--ink3);
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* Spinning animation for active step */
+.step-icon--spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   12. RESULT BANNER
+   ═══════════════════════════════════════════════════════════════════ */
+
+.result-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r2);
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.result-banner--success {
+  background: var(--success-light);
+  border-color: var(--success);
+}
+
+.result-banner--failed {
+  background: var(--danger-light);
+  border-color: var(--danger);
+}
+
+.result-banner--cancelled {
+  background: var(--surface2);
+  border-color: var(--border2);
+}
+
+.result-icon {
+  font-size: 22px;
+}
+
+.result-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   13. RESULT STATS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.result-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.stat-label {
+  font-size: 10px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+}
+
+.stat-value--success {
+  color: var(--success);
+}
+
+.stat-value--failed {
+  color: var(--danger);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   14. RESULT ACTIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.result-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   15. LOG STREAM
+   ═══════════════════════════════════════════════════════════════════ */
+
+.log-section {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--log-bg);
+  max-height: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink3);
+  border-bottom: 1px solid var(--log-border);
+  flex-shrink: 0;
+}
+
+.log-clear-btn {
+  background: none;
+  border: none;
+  color: var(--ink3);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--r);
+  transition: color 0.15s, background 0.15s;
+}
+
+.log-clear-btn:hover {
+  color: var(--ink);
+  background: var(--surface3);
+}
+
+.log-stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.log-entry {
+  display: flex;
+  gap: 8px;
+  opacity: 0.9;
+}
+
+.log-time {
+  color: var(--ink3);
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.log-msg {
+  word-break: break-word;
+}
+
+.log-entry--info .log-msg {
+  color: var(--ink3);
+}
+
+.log-entry--success .log-msg {
+  color: var(--success);
+}
+
+.log-entry--error .log-msg {
+  color: var(--danger);
+}
+
+.log-entry--warn .log-msg {
+  color: var(--warn);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   16. SCROLLBAR
+   ═══════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink3);
+}

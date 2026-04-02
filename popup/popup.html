@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-color="teal">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,18 +8,18 @@
 </head>
 <body>
 
-  <div class="popup">
+  <div class="ext">
 
     <!-- ── Header ──────────────────────────────────── -->
-    <header class="header">
-      <div class="header-left">
-        <span class="logo">🔗</span>
-        <h1 class="title">Prompt Chain</h1>
-      </div>
-      <div class="header-right">
-        <button id="btnOpenDashboard" class="icon-btn" title="Open Dashboard">⚙️</button>
-      </div>
-    </header>
+    <div class="eh">
+      <span style="font-size:14px">🔗</span>
+      <span style="font-size:12px;font-weight:600;color:var(--ink);flex:1">Prompt Chain</span>
+
+      <button id="btnToggleTheme" class="icon-btn" title="Toggle Light/Dark">🌙</button>
+      <button id="btnToggleColor" class="icon-btn" title="Toggle Teal/Orange">🎨</button>
+      <button id="btnOpenSidePanel" class="icon-btn" title="Open Side Panel">📊</button>
+      <button id="btnOpenDashboard" class="icon-btn" title="Open Dashboard">📋</button>
+    </div>
 
     <!-- ── Status Bar (shows when chain is running) ── -->
     <div class="status-bar" id="statusBar" style="display:none;">
@@ -34,17 +34,28 @@
       </div>
     </div>
 
-    <!-- ── Tab Navigation ─────────────────────────── -->
-    <nav class="tabs">
-      <button class="tab tab--active" data-tab="recipes">Recipes</button>
-      <button class="tab" data-tab="chains">Chains</button>
-      <button class="tab" data-tab="quick">Quick Run</button>
-    </nav>
+    <!-- ── Connection Status ───────────────────────── -->
+    <div class="ext-conn" id="connStatus">
+      <span class="conn-dot"></span>
+      <span id="currentDomain">Checking active tab...</span>
+    </div>
+
+    <!-- ── Search ──────────────────────────────────── -->
+    <div class="ext-search">
+      <input class="esb" placeholder="🔍 Search recipes & chains..." id="searchInput">
+    </div>
+
+    <!-- ── Filter Tabs ─────────────────────────────── -->
+    <div class="ext-filters" id="filterBar">
+      <div class="fc2 on" data-filter="recipes">🎯 Recipes</div>
+      <div class="fc2" data-filter="chains">⛓ Chains</div>
+      <div class="fc2" data-filter="quick">⚡ Quick Run</div>
+    </div>
 
     <!-- ══════════════════════════════════════════════ -->
-    <!--  TAB: Recipes                                  -->
+    <!--  PANEL: Recipes                                -->
     <!-- ══════════════════════════════════════════════ -->
-    <div class="tab-content tab-content--active" id="tab-recipes">
+    <div class="tab-content tab-content--active" id="panel-recipes">
 
       <div class="section-header">
         <span class="section-title">Recorded Recipes</span>
@@ -62,9 +73,9 @@
     </div>
 
     <!-- ══════════════════════════════════════════════ -->
-    <!--  TAB: Chains                                   -->
+    <!--  PANEL: Chains                                 -->
     <!-- ══════════════════════════════════════════════ -->
-    <div class="tab-content" id="tab-chains">
+    <div class="tab-content" id="panel-chains">
 
       <div class="section-header">
         <span class="section-title">Prompt Chains</span>
@@ -101,9 +112,9 @@
     </div>
 
     <!-- ══════════════════════════════════════════════ -->
-    <!--  TAB: Quick Run                                -->
+    <!--  PANEL: Quick Run                              -->
     <!-- ══════════════════════════════════════════════ -->
-    <div class="tab-content" id="tab-quick">
+    <div class="tab-content" id="panel-quick">
 
       <div class="section-header">
         <span class="section-title">Quick Run</span>
@@ -127,13 +138,13 @@
 
     <!-- ── Footer ──────────────────────────────────── -->
     <footer class="footer">
-      <button id="btnOpenSidePanel" class="link-btn">📊 Side Panel</button>
+      <button id="btnOpenSidePanelFooter" class="link-btn">📊 Side Panel</button>
       <button id="btnOpenDashboardFooter" class="link-btn">📋 Dashboard</button>
     </footer>
 
   </div>
 
-  <!-- Scripts: load shared libs then popup logic -->
+  <!-- Scripts -->
   <script src="../lib/constants.js"></script>
   <script src="../lib/utils.js"></script>
   <script src="../lib/messages.js"></script>
