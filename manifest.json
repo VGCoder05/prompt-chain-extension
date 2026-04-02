@@ -26,6 +26,11 @@
         "lib/logger.js",
         "content/selectorEngine.js",
         "content/recorder.js",
+        "content/replayer.js",
+        "content/completionDetector.js",
+        "content/healthChecker.js",
+        "content/extraAction.js",
+        "content/chainRunner.js",
         "content/main.js"
       ],
       "css": [
