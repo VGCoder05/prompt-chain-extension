@@ -370,17 +370,17 @@
     * @returns {Promise<string>} current text in the input
     */
     async getInputText(fingerprint) {
-      const match = PC.SelectorEngine.find(fingerprint);
-      if (!match) return '';
+  const match = PC.SelectorEngine.find(fingerprint);
+  if (!match) return '';
 
-      const el = match.element;
-      const inputType = fingerprint._inputType || this._detectInputType(el);  // ❌ "unknown" is truthy!
+  const el = match.element;
+  const inputType = fingerprint._inputType || this._detectInputType(el);  // ❌ "unknown" is truthy!
 
-      if (inputType === 'contenteditable') {
-        return (el.innerText || el.textContent || '').trim();
-      }
-      return (el.value || '').trim();  // ❌ Falls here! .ql-editor has no .value → returns ''
-    },
+  if (inputType === 'contenteditable') {
+    return (el.innerText || el.textContent || '').trim();
+  }
+  return (el.value || '').trim();  // ❌ Falls here! .ql-editor has no .value → returns ''
+},
 
     /**
      * Inject text and then verify it persisted.
