@@ -32,7 +32,6 @@
      * @param {number} [opts.timeout] - Max wait for element (ms)
      * @returns {Promise<object>} { success, confidence, method, inputType }
      */
-
     async injectText(fingerprint, text, opts = {}) {
       const timeout = opts.timeout || 10000;
 
@@ -50,19 +49,18 @@
       const element = match.element;
 
       // ══════════════════════════════════════════════════════════════
-      // ⬇️ ADD THIS BLOCK HERE — Walk up to contenteditable ancestor
+      // Walk up to contenteditable ancestor if needed (for Quill, etc.)
       // ══════════════════════════════════════════════════════════════
       let target = element;
       if (!target.getAttribute('contenteditable') && target.closest('[contenteditable="true"]')) {
         target = target.closest('[contenteditable="true"]');
-        console.log('[Replayer] Walked up to contenteditable ancestor:', target.tagName);
+        console.log('[Replayer] Walked up to contenteditable ancestor:', target.tagName, target.className);
       }
-      // ══════════════════════════════════════════════════════════════
 
-      // Now use `target` instead of `element` for inputType detection
+      // Detect input type — treat "unknown" as falsy so we re-detect
       const inputType = (fingerprint._inputType && fingerprint._inputType !== 'unknown')
         ? fingerprint._inputType
-        : this._detectInputType(target);  // ⬅️ Changed to `target`
+        : this._detectInputType(target);
 
       console.log(
         `[Replayer] Injecting text — type: ${inputType}, ` +
@@ -71,7 +69,7 @@
 
       try {
         // Focus the element first
-        target.focus();  // ⬅️ Changed to `target`
+        target.focus();
 
         // Small delay for focus to register
         await PC.Utils.sleep(100);
@@ -80,21 +78,23 @@
         switch (inputType) {
           case 'textarea':
           case 'input':
-            this._injectIntoNativeInput(target, text);  // ⬅️ Changed to `target`
+            this._injectIntoNativeInput(target, text);
             break;
 
           case 'contenteditable':
-            this._injectIntoContentEditable(target, text);  // ⬅️ Changed to `target`
+            this._injectIntoContentEditable(target, text);
             break;
 
           default:
             // Try to auto-detect
             if (target.getAttribute('contenteditable') === 'true' || target.closest('[contenteditable="true"]')) {
-              this._injectIntoContentEditable(target.closest('[contenteditable="true"]') || target, text);
+              const editableTarget = target.closest('[contenteditable="true"]') || target;
+              this._injectIntoContentEditable(editableTarget, text);
             } else if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
               this._injectIntoNativeInput(target, text);
             } else {
               // Last resort: try native input approach
+              console.warn('[Replayer] Unknown input type, trying native input approach');
               this._injectIntoNativeInput(target, text);
             }
         }
@@ -134,7 +134,16 @@
       const match = await PC.SelectorEngine.findWithWait(sendFingerprint, timeout);
 
       if (match && match.confidence >= PC.Constants.CONFIDENCE.MINIMUM) {
-        const button = match.element;
+        let button = match.element;
+
+        // If we found an icon inside a button, get the button
+        if (button.tagName === 'MAT-ICON' || button.tagName === 'svg' || button.tagName === 'path') {
+          const parentButton = button.closest('button');
+          if (parentButton) {
+            button = parentButton;
+            console.log('[Replayer] Walked up from icon to parent button');
+          }
+        }
 
         // Check if button is disabled
         if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
@@ -150,10 +159,22 @@
 
         console.log(
           `[Replayer] Clicking send — confidence: ${match.confidence.toFixed(2)}, ` +
-          `method: ${match.method}`
+          `method: ${match.method}, element: ${button.tagName}`
         );
 
-        button.click();
+        // Try multiple click methods for reliability
+        try {
+          // Method 1: Native click
+          button.click();
+        } catch (e) {
+          console.warn('[Replayer] Native click failed, trying dispatchEvent');
+          // Method 2: Dispatch click event
+          button.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          }));
+        }
 
         return {
           success: true,
@@ -162,8 +183,6 @@
           usedFallback: false,
         };
       }
-
-
 
       // Send button not found — try Enter key fallback
       console.warn('[Replayer] Send button not found — trying Enter key fallback');
@@ -228,8 +247,15 @@
 
       if (!inserted) {
         // Fallback: manually set textContent and dispatch events
-        console.warn('[Replayer] execCommand failed — using textContent fallback');
-        element.textContent = text;
+        console.warn('[Replayer] execCommand failed — using innerHTML fallback');
+        
+        // For Quill, we need to set the content properly
+        // Quill uses <p> tags internally
+        if (element.classList.contains('ql-editor')) {
+          element.innerHTML = `<p>${text}</p>`;
+        } else {
+          element.textContent = text;
+        }
 
         // Move cursor to end
         range.selectNodeContents(element);
@@ -246,7 +272,121 @@
         data: text,
       }));
 
+      // Also dispatch a regular input event (some frameworks listen for this)
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Dispatch change event
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+
       console.log(`[Replayer] Injected ${text.length} chars into contenteditable`);
+    },
+
+
+    // ══════════════════════════════════════════════════════════════
+    //  VERIFICATION METHODS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Verify that injected text is still present in the input.
+     * Returns the current text content, or empty string if cleared.
+     *
+     * @param {object} fingerprint - The targetInput fingerprint
+     * @returns {Promise<string>} current text in the input
+     */
+    async getInputText(fingerprint) {
+      const match = PC.SelectorEngine.find(fingerprint);
+      if (!match) {
+        console.warn('[Replayer] getInputText: element not found');
+        return '';
+      }
+
+      let el = match.element;
+
+      // ══════════════════════════════════════════════════════════════
+      // Walk up to contenteditable ancestor if needed
+      // ══════════════════════════════════════════════════════════════
+      if (!el.getAttribute('contenteditable') && el.closest('[contenteditable="true"]')) {
+        el = el.closest('[contenteditable="true"]');
+      }
+
+      // Detect input type — treat "unknown" as falsy so we re-detect
+      const inputType = (fingerprint._inputType && fingerprint._inputType !== 'unknown')
+        ? fingerprint._inputType
+        : this._detectInputType(el);
+
+      console.log(`[Replayer] getInputText — type: ${inputType}, element: ${el.tagName}.${el.className.split(' ')[0]}`);
+
+      if (inputType === 'contenteditable') {
+        // For Quill editor, get the actual text content
+        const text = (el.innerText || el.textContent || '').trim();
+        console.log(`[Replayer] getInputText result: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+        return text;
+      }
+
+      const value = (el.value || '').trim();
+      console.log(`[Replayer] getInputText result: "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
+      return value;
+    },
+
+    /**
+     * Inject text and then verify it persisted.
+     * If the text gets cleared (by page JS, framework reset, etc.),
+     * retries injection up to maxAttempts times.
+     *
+     * @param {object} fingerprint - The targetInput fingerprint
+     * @param {string} text - Text to inject
+     * @param {object} [opts]
+     * @param {number} [opts.timeout] - Max wait for element
+     * @param {number} [opts.verifyAttempts] - Max re-inject attempts (default 3)
+     * @param {number} [opts.verifyDelay] - Delay before verifying (ms, default 200)
+     * @returns {Promise<object>} { success, confidence, method, inputType, verified }
+     */
+    async injectAndVerify(fingerprint, text, opts = {}) {
+      const verifyAttempts = opts.verifyAttempts || 3;
+      const verifyDelay = opts.verifyDelay || 300; // Increased from 200
+
+      for (let attempt = 0; attempt < verifyAttempts; attempt++) {
+        const result = await this.injectText(fingerprint, text, opts);
+
+        if (!result.success) return result;
+
+        // Wait for framework to process
+        await PC.Utils.sleep(verifyDelay);
+
+        // Verify text persisted
+        const currentText = await this.getInputText(fingerprint);
+
+        console.log(`[Replayer] Verify attempt ${attempt + 1}: injected "${text.substring(0, 20)}...", found "${currentText.substring(0, 20)}..."`);
+
+        // Check if at least part of the text is there (Quill may format it slightly differently)
+        if (currentText.length > 0 && (currentText.includes(text) || text.includes(currentText) || currentText === text)) {
+          // Text is present — success
+          console.log(`[Replayer] ✅ Text verified on attempt ${attempt + 1}`);
+          return { ...result, verified: true, verifyAttempt: attempt };
+        }
+
+        // Check if the text is there but with some whitespace differences
+        const normalizedCurrent = currentText.replace(/\s+/g, ' ').trim();
+        const normalizedExpected = text.replace(/\s+/g, ' ').trim();
+        if (normalizedCurrent === normalizedExpected) {
+          console.log(`[Replayer] ✅ Text verified (with whitespace normalization) on attempt ${attempt + 1}`);
+          return { ...result, verified: true, verifyAttempt: attempt };
+        }
+
+        console.warn(
+          `[Replayer] Text was cleared after injection (attempt ${attempt + 1}/${verifyAttempts}) — re-injecting...`
+        );
+
+        // Small increasing delay before retry
+        await PC.Utils.sleep(300 * (attempt + 1));
+      }
+
+      // All verify attempts failed — text keeps getting cleared
+      return {
+        success: false,
+        error: `Text cleared after injection ${verifyAttempts} times — page may be resetting the input`,
+        verified: false,
+      };
     },
 
 
@@ -275,7 +415,13 @@
         };
       }
 
-      const el = inputMatch.element;
+      let el = inputMatch.element;
+
+      // Walk up to contenteditable if needed
+      if (!el.getAttribute('contenteditable') && el.closest('[contenteditable="true"]')) {
+        el = el.closest('[contenteditable="true"]');
+      }
+
       el.focus();
 
       // Simulate Enter key press (not Shift+Enter which is newline)
@@ -346,89 +492,31 @@
      * Detect the input type of an element.
      */
     _detectInputType(element) {
+      // Direct contenteditable
       if (element.getAttribute('contenteditable') === 'true') return 'contenteditable';
+
+      // Standard form elements
       if (element.tagName === 'TEXTAREA') return 'textarea';
       if (element.tagName === 'INPUT') return 'input';
+
+      // ARIA textbox role
       if (element.getAttribute('role') === 'textbox') return 'contenteditable';
 
-      // NEW: Check if a parent is contenteditable (Quill, ProseMirror, etc.)
+      // Check for Quill editor classes
+      if (element.classList.contains('ql-editor')) return 'contenteditable';
+
+      // Check if parent is contenteditable (for elements inside Quill)
       let parent = element.parentElement;
-      while (parent) {
+      let depth = 0;
+      while (parent && depth < 10) {
         if (parent.getAttribute('contenteditable') === 'true') return 'contenteditable';
         if (parent.classList.contains('ql-editor')) return 'contenteditable';
+        if (parent.classList.contains('ProseMirror')) return 'contenteditable';
         parent = parent.parentElement;
+        depth++;
       }
 
       return 'unknown';
-    },
-
-    /**
-    * Verify that injected text is still present in the input.
-    * Returns the current text content, or empty string if cleared.
-    *
-    * @param {object} fingerprint - The targetInput fingerprint
-    * @returns {Promise<string>} current text in the input
-    */
-    async getInputText(fingerprint) {
-  const match = PC.SelectorEngine.find(fingerprint);
-  if (!match) return '';
-
-  const el = match.element;
-  const inputType = fingerprint._inputType || this._detectInputType(el);  // ❌ "unknown" is truthy!
-
-  if (inputType === 'contenteditable') {
-    return (el.innerText || el.textContent || '').trim();
-  }
-  return (el.value || '').trim();  // ❌ Falls here! .ql-editor has no .value → returns ''
-},
-
-    /**
-     * Inject text and then verify it persisted.
-     * If the text gets cleared (by page JS, framework reset, etc.),
-     * retries injection up to maxAttempts times.
-     *
-     * @param {object} fingerprint - The targetInput fingerprint
-     * @param {string} text - Text to inject
-     * @param {object} [opts]
-     * @param {number} [opts.timeout] - Max wait for element
-     * @param {number} [opts.verifyAttempts] - Max re-inject attempts (default 3)
-     * @param {number} [opts.verifyDelay] - Delay before verifying (ms, default 200)
-     * @returns {Promise<object>} { success, confidence, method, inputType, verified }
-     */
-    async injectAndVerify(fingerprint, text, opts = {}) {
-      const verifyAttempts = opts.verifyAttempts || 3;
-      const verifyDelay = opts.verifyDelay || 200;
-
-      for (let attempt = 0; attempt < verifyAttempts; attempt++) {
-        const result = await this.injectText(fingerprint, text, opts);
-
-        if (!result.success) return result;
-
-        // Wait for framework to process
-        await PC.Utils.sleep(verifyDelay);
-
-        // Verify text persisted
-        const currentText = await this.getInputText(fingerprint);
-
-        if (currentText.length > 0) {
-          // Text is present — success
-          return { ...result, verified: true, verifyAttempt: attempt };
-        }
-
-        console.warn(
-          `[Replayer] Text was cleared after injection (attempt ${attempt + 1}/${verifyAttempts}) — re-injecting...`
-        );
-
-        // Small increasing delay before retry
-        await PC.Utils.sleep(300 * (attempt + 1));
-      }
-
-      // All verify attempts failed — text keeps getting cleared
-      return {
-        success: false,
-        error: `Text cleared after injection ${verifyAttempts} times — page may be resetting the input`,
-        verified: false,
-      };
     },
   };
 
