@@ -326,70 +326,37 @@
           // ── F. WAIT FOR COMPLETION ─────────────────────
           PC.Logger.waitStart({ promptIndex: index });
 
-          let completionResult;
+          // Get the completion indicator (new) or completion signal (legacy)
+          const completionIndicator = this.recipe.elements.completionIndicator ||
+            this.recipe.elements.completionSignal;
 
-          // Check if this is a site-specific recipe
-          const signalType = this.recipe.elements.completionSignal?._signalType;
-          const isSiteSpecific = signalType === PC.Constants.SIGNAL_TYPES.SITE_SPECIFIC;
+          // Optional: streaming indicator (stop button) for additional detection
+          const streamingIndicator = this.recipe.elements.streamingIndicator;
 
-          if (isSiteSpecific && PC.ResponseDetector.isSupportedSite()) {
-            // ── Use site-specific detection (Gemini, ChatGPT, Claude, etc.) ──
-            console.log(`[ChainRunner] Using site-specific detection for ${PC.ResponseDetector.getSiteName()}`);
-
-            try {
-              const responseResult = await PC.ResponseDetector.waitForResponse({
-                timeout: this.settings.maxWaitTime,
-                pollInterval: this.settings.pollInterval,
-                onProgress: (text) => {
-                  // Optional: could send progress updates
-                  console.log(`[ChainRunner] Response progress: ${PC.Utils.truncate(text, 60)}...`);
-                },
-              });
-
-              completionResult = {
-                completed: true,
-                duration: responseResult.duration,
-                method: 'siteSpecific',
-                text: responseResult.text,
-              };
-
-            } catch (err) {
-              // Site-specific detection failed — try fingerprint fallback
-              console.warn(`[ChainRunner] Site-specific detection failed: ${err.message}`);
-
-              const fallbackFingerprint = this.recipe.elements.completionSignal._responseFingerprint;
-              if (fallbackFingerprint) {
-                console.log('[ChainRunner] Trying fingerprint fallback...');
-                completionResult = await this._waitForCompletionByFingerprint(fallbackFingerprint, signal);
-              } else {
-                completionResult = {
-                  completed: false,
-                  timedOut: err.message.includes('timeout'),
-                  error: err.message,
-                };
-              }
-            }
-
-          } else {
-            // ── Use fingerprint-based detection (manual recording) ──
-            completionResult = await PC.CompletionDetector.waitForCompletion(
-              this.recipe.elements.completionSignal,
-              {
-                maxWaitTime: this.settings.maxWaitTime,
-                pollInterval: this.settings.pollInterval,
-                domQuietPeriod: this.settings.domQuietPeriod,
-                domMinMutations: this.settings.domMinMutations,
-                signal,
-              }
-            );
+          if (!completionIndicator) {
+            throw new Error('No completion indicator recorded — cannot detect when AI is done');
           }
+
+          const completionResult = await PC.CompletionDetector.waitForCompletion(
+            completionIndicator,
+            {
+              streamingIndicator,
+              maxWaitTime: this.settings.maxWaitTime,
+              pollInterval: this.settings.pollInterval,
+              domQuietPeriod: this.settings.domQuietPeriod,
+              domMinMutations: this.settings.domMinMutations,
+              signal,
+            }
+          );
 
           if (!completionResult.completed) {
             if (completionResult.timedOut) {
               throw new Error(`Response timeout — AI took longer than ${PC.Utils.formatDuration(this.settings.maxWaitTime)}`);
             }
-            if (signal.aborted) throw new Error('Chain cancelled');
-            throw new Error('Completion detection failed: ' + (completionResult.error || 'unknown'));
+            if (signal.aborted || completionResult.method === 'aborted') {
+              throw new Error('Chain cancelled');
+            }
+            throw new Error('Completion detection failed');
           }
 
           PC.Logger.waitComplete({

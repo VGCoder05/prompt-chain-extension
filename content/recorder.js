@@ -3,18 +3,19 @@
  * ────────────────────────────────────────────
  * Element Picker + Setup Wizard for recording action recipes.
  *
- * The recording flow has 4 steps:
+ * Recording flow (5 steps):
  *   Step 1: User clicks the TEXT INPUT where prompts go
  *   Step 2: User clicks the SEND BUTTON
- *   Step 3: User sends a test message, system detects completion
- *   Step 4 (optional): User clicks an EXTRA ACTION element
+ *   Step 3: User sends test message, clicks STOP button (or skips)
+ *   Step 4: User clicks COMPLETION INDICATOR (element that appears when AI is done)
+ *   Step 5: (Optional) User clicks an EXTRA ACTION element
  *
- * For supported AI sites (Gemini, ChatGPT, Claude, etc.), Step 3 uses
- * site-specific detection. For unknown sites, falls back to manual picking.
+ * Completion detection works by:
+ *   - Waiting for the "completion indicator" element to APPEAR or become ENABLED
+ *   - This is more reliable than waiting for stop button to disappear
  *
  * Dependencies:
  *   - PC.SelectorEngine
- *   - PC.ResponseDetector
  *   - PC.Storage
  *   - PC.Logger
  *   - PC.Messages
@@ -45,13 +46,6 @@
       this._handleKeyDown = this._handleKeyDown.bind(this);
     }
 
-    /**
-     * Start the element picker.
-     * Returns a Promise that resolves with the picked element,
-     * or rejects if cancelled (Escape key or stop() called).
-     *
-     * @returns {Promise<HTMLElement>}
-     */
     start() {
       return new Promise((resolve, reject) => {
         this._active = true;
@@ -64,10 +58,6 @@
       });
     }
 
-    /**
-     * Stop the element picker.
-     * If a pick is pending, rejects the Promise with 'Picker cancelled'.
-     */
     stop() {
       if (!this._active) return;
 
@@ -78,7 +68,6 @@
       document.removeEventListener('click', this._handleClick, true);
       document.removeEventListener('keydown', this._handleKeyDown, true);
 
-      // Reject the pending Promise so the caller knows we stopped
       if (this._reject) {
         const rej = this._reject;
         this._resolve = null;
@@ -108,11 +97,9 @@
 
       this._removeHighlight();
 
-      // Flash animation
       target.classList.add('pc-picked-flash');
       setTimeout(() => target.classList.remove('pc-picked-flash'), 600);
 
-      // Resolve the Promise with the picked element
       this._active = false;
       document.removeEventListener('mousemove', this._handleMouseMove, true);
       document.removeEventListener('click', this._handleClick, true);
@@ -131,7 +118,7 @@
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        this.stop(); // This will reject the Promise
+        this.stop();
       }
     }
 
@@ -196,6 +183,18 @@
       const actions = document.createElement('div');
       actions.className = 'pc-banner-actions';
 
+      // ✅ NEW: "Done" / "Message Sent" button
+      if (opts.showDone && opts.onDone) {
+        const doneBtn = document.createElement('button');
+        doneBtn.className = 'pc-banner-btn pc-banner-btn--done';
+        doneBtn.textContent = opts.doneLabel || '✔ Message Sent';
+        doneBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          opts.onDone();
+        });
+        actions.appendChild(doneBtn);
+      }
+
       if (opts.showSkip && opts.onSkip) {
         const skipBtn = document.createElement('button');
         skipBtn.className = 'pc-banner-btn';
@@ -255,7 +254,6 @@
 
     updateWaitingText(text) {
       if (this._waitingOverlay) {
-        // Remove old text nodes, keep spinner
         const spinner = this._waitingOverlay.querySelector('.pc-waiting-spinner');
         this._waitingOverlay.textContent = '';
         if (spinner) this._waitingOverlay.appendChild(spinner);
@@ -288,7 +286,6 @@
       this._active = false;
       this._cancelled = false;
       this._recipe = null;
-      this._siteConfig = null;
     }
 
     get isActive() {
@@ -304,15 +301,6 @@
       this._active = true;
       this._cancelled = false;
 
-      // Initialize ResponseDetector for site-specific features
-      this._siteConfig = null;
-      
-      if (this._siteConfig) {
-        console.log(`[Recorder] Site detected: ${this._siteConfig.name}`);
-      } else {
-        console.log('[Recorder] Unknown site — using manual detection');
-      }
-
       const pageInfo = PC.Content ? PC.Content.getPageInfo() : {
         hostname: window.location.hostname,
         pathname: window.location.pathname,
@@ -324,44 +312,46 @@
         name: recipeName || `Recipe for ${pageInfo.hostname}`,
         domain: pageInfo.hostname,
         elements: {
-          targetInput: null,
-          sendTrigger: null,
-          completionSignal: null,
-          extraAction: null,
+          targetInput: null,       // Step 1: Where to type
+          sendTrigger: null,       // Step 2: How to send
+          streamingIndicator: null, // Step 3: Stop button (optional)
+          completionIndicator: null, // Step 4: Element that appears when done
+          extraAction: null,       // Step 5: Optional post-response action
         },
         settings: { ...PC.Constants.DEFAULT_SETTINGS },
-        // Store site info for chain execution
-        siteInfo: {
-          siteName: this._siteConfig?.name || null,
-          isKnownSite: !!this._siteConfig,
-          detectionMethod: this._siteConfig ? 'siteConfig' : 'manual',
-        },
       };
 
       PC.Logger.recordStart({
         domain: pageInfo.hostname,
         url: pageInfo.url,
-        siteName: this._siteConfig?.name,
       });
 
       PC.Messages.send(MSG.RECORDING_STEP, {
         step: 'started',
         domain: pageInfo.hostname,
-        siteName: this._siteConfig?.name,
       });
 
       try {
+        // Step 1: Record input element
         await this._step1_targetInput();
         this._checkCancelled();
 
+        // Step 2: Record send button
         await this._step2_sendTrigger();
         this._checkCancelled();
 
-        await this._step3_completionSignal();
+        // Step 3: Send test message & record stop button (optional)
+        await this._step3_streamingIndicator();
         this._checkCancelled();
 
-        await this._step4_extraAction();
+        // Step 4: Record completion indicator (required)
+        await this._step4_completionIndicator();
+        this._checkCancelled();
 
+        // Step 5: Record extra action (optional)
+        await this._step5_extraAction();
+
+        // Save the recipe
         const saved = await this._saveRecipe();
 
         PC.Logger.recordComplete({
@@ -393,13 +383,10 @@
     cancel() {
       if (!this._active) return;
       this._cancelled = true;
-      this._picker.stop(); // This rejects any pending pick
+      this._picker.stop();
       this._cleanup();
     }
 
-    /**
-     * Throws if cancel() was called between steps.
-     */
     _checkCancelled() {
       if (this._cancelled) {
         throw new Error('Recording cancelled');
@@ -407,41 +394,18 @@
     }
 
 
-    // ── Step 1: Record Target Input ─────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  STEP 1: TARGET INPUT
+    // ══════════════════════════════════════════════════════════════
 
     async _step1_targetInput() {
-      // For supported sites, try auto-detection first
-      if (this._siteConfig) {
-        const autoInput = PC.ResponseDetector.findElement('input');
-        if (autoInput) {
-          this._overlay.showBanner({
-            stepLabel: '1/4',
-            text: `✅ Auto-detected input for ${this._siteConfig.name}. Click it to confirm, or click a different element.`,
-            totalSteps: 4,
-            currentStep: 0,
-            onCancel: () => this.cancel(),
-          });
-
-          // Highlight the auto-detected element
-          autoInput.classList.add('pc-highlight-element');
-        } else {
-          this._overlay.showBanner({
-            stepLabel: '1/4',
-            text: '📝 Click on the TEXT INPUT AREA where you type prompts',
-            totalSteps: 4,
-            currentStep: 0,
-            onCancel: () => this.cancel(),
-          });
-        }
-      } else {
-        this._overlay.showBanner({
-          stepLabel: '1/4',
-          text: '📝 Click on the TEXT INPUT AREA where you type prompts',
-          totalSteps: 4,
-          currentStep: 0,
-          onCancel: () => this.cancel(),
-        });
-      }
+      this._overlay.showBanner({
+        stepLabel: '1/5',
+        text: '📝 Click on the TEXT INPUT AREA where you type prompts',
+        totalSteps: 5,
+        currentStep: 0,
+        onCancel: () => this.cancel(),
+      });
 
       const element = await this._picker.start();
 
@@ -451,15 +415,13 @@
       const isTextbox = element.getAttribute('role') === 'textbox';
 
       if (!isInput && !isEditable && !isTextbox) {
-        console.warn(
-          `[Recorder] Selected element is not a typical input (tag: ${tag}). Recording anyway.`
-        );
+        console.warn(`[Recorder] Selected element may not be a typical input (tag: ${tag}). Recording anyway.`);
       }
 
       const fingerprint = PC.SelectorEngine.fingerprint(element);
       fingerprint._inputType = isEditable ? 'contenteditable' :
-                               tag === 'textarea' ? 'textarea' :
-                               tag === 'input' ? 'input' : 'unknown';
+        tag === 'textarea' ? 'textarea' :
+          tag === 'input' ? 'input' : 'unknown';
 
       this._recipe.elements.targetInput = fingerprint;
 
@@ -478,40 +440,18 @@
     }
 
 
-    // ── Step 2: Record Send Trigger ─────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  STEP 2: SEND TRIGGER
+    // ══════════════════════════════════════════════════════════════
 
     async _step2_sendTrigger() {
-      // For supported sites, try auto-detection
-      if (this._siteConfig) {
-        const autoSubmit = PC.ResponseDetector.findElement('submit');
-        if (autoSubmit) {
-          this._overlay.showBanner({
-            stepLabel: '2/4',
-            text: `✅ Auto-detected send button. Click it to confirm, or click a different element.`,
-            totalSteps: 4,
-            currentStep: 1,
-            onCancel: () => this.cancel(),
-          });
-
-          autoSubmit.classList.add('pc-highlight-element');
-        } else {
-          this._overlay.showBanner({
-            stepLabel: '2/4',
-            text: '📨 Click on the SEND BUTTON that submits your message',
-            totalSteps: 4,
-            currentStep: 1,
-            onCancel: () => this.cancel(),
-          });
-        }
-      } else {
-        this._overlay.showBanner({
-          stepLabel: '2/4',
-          text: '📨 Click on the SEND BUTTON that submits your message',
-          totalSteps: 4,
-          currentStep: 1,
-          onCancel: () => this.cancel(),
-        });
-      }
+      this._overlay.showBanner({
+        stepLabel: '2/5',
+        text: '📨 Click on the SEND BUTTON that submits your message',
+        totalSteps: 5,
+        currentStep: 1,
+        onCancel: () => this.cancel(),
+      });
 
       const element = await this._picker.start();
 
@@ -535,187 +475,231 @@
     }
 
 
-    // ── Step 3: Record Completion Signal ─────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  STEP 3: STREAMING INDICATOR (Optional Stop Button)
+    // ══════════════════════════════════════════════════════════════
+    async _step3_streamingIndicator() {
+      // ─── Phase A: Let user send a test message (picker OFF) ───
+      const userAction = await this._step3_waitForUserToSend();
 
-    async _step3_completionSignal() {
-      // For SUPPORTED SITES: use automatic detection
-      if (this._siteConfig) {
-        await this._step3_automatic();
-      } else {
-        // For UNKNOWN SITES: fall back to manual stop button detection
-        await this._step3_manual();
+      // User skipped or cancelled — exit early
+      if (userAction === 'skip') {
+        console.log('[Recorder] Step 3 skipped — no streaming indicator');
+        PC.Logger.recordStep({ step: 'STREAMING_INDICATOR', skipped: true });
+        return;
       }
+
+      if (userAction === 'cancel' || this._cancelled) {
+        throw new Error('Recording cancelled');
+      }
+
+      // ─── Phase B: Pick the stop/cancel button (picker ON) ───
+      await this._step3_pickStopButton();
     }
 
     /**
-     * Step 3 for supported sites (Gemini, ChatGPT, Claude, etc.)
-     * Uses ResponseDetector for automatic completion detection.
+     * Phase A: Instructs user to send a test message.
+     * Picker is OFF so the user can freely interact with the page.
+     * Returns 'done' | 'skip' | 'cancel'.
      */
-    async _step3_automatic() {
-      const siteName = this._siteConfig.name;
+    _step3_waitForUserToSend() {
+      return new Promise((resolve) => {
+        this._overlay.showBanner({
+          stepLabel: '3/5',
+          text: '⏳ Type a SHORT test message and SEND IT. Click "Message Sent" once done.',
+          totalSteps: 5,
+          currentStep: 2,
+          showDone: true,
+          doneLabel: '✔ Message Sent',
+          onDone: () => resolve('done'),
+          showSkip: true,
+          onSkip: () => resolve('skip'),
+          onCancel: () => {
+            resolve('cancel');
+            this.cancel();
+          },
+        });
+      });
+    }
 
+    /**
+     * Phase B: Activates the picker so the user can select the stop button.
+     * Also waits for the stop button to disappear after selection.
+     */
+    async _step3_pickStopButton() {
       this._overlay.showBanner({
-        stepLabel: '3/4',
-        text: `⏳ ${siteName} detected! Send a SHORT test message to verify detection...`,
-        totalSteps: 4,
+        stepLabel: '3/5',
+        text: '🛑 Now click the STOP / CANCEL button that appeared while AI is responding (or Skip if none)',
+        totalSteps: 5,
         currentStep: 2,
+        showSkip: true,
+        onSkip: () => {
+          this._picker.stop();
+        },
         onCancel: () => this.cancel(),
       });
-
-      this._overlay.showWaiting(`Waiting for you to send a test message on ${siteName}...`);
-
-      // Wait for user to send a message (DOM activity)
-      await this._waitForDOMActivity(5);
-      this._checkCancelled();
-
-      // Now wait for AI to start streaming
-      this._overlay.updateWaitingText('Detecting AI response...');
-
-      // Wait a moment for streaming to start
-      await PC.Utils.sleep(1000);
-
-      // Check if we can detect streaming
-      const isStreaming = PC.ResponseDetector.isStreaming();
-      console.log(`[Recorder] Streaming detected: ${isStreaming}`);
-
-      if (isStreaming) {
-        this._overlay.updateBannerText(`🔄 ${siteName} is generating a response... waiting for completion`);
-      }
-
-      // Wait for response to complete using site-specific detection
-      this._overlay.updateWaitingText('Waiting for AI response to complete...');
 
       try {
-        const result = await PC.ResponseDetector.waitForResponse({
-          timeout: 120000,
-          pollInterval: 500,
-          onProgress: (text) => {
-            const preview = PC.Utils.truncate(text, 50);
-            this._overlay.updateWaitingText(`Response: "${preview}..."`);
-          },
-        });
+        const element = await this._picker.start();
 
-        console.log(`[Recorder] Response completed in ${result.duration}ms`);
+        // User picked a stop button — fingerprint it
+        const fingerprint = PC.SelectorEngine.fingerprint(element);
+        fingerprint._indicatorType = 'streaming';
+        fingerprint._signalType = PC.Constants.SIGNAL_TYPES.ELEMENT_DISAPPEARS;
 
-        // Store a special completion signal that indicates site-specific detection
-        this._recipe.elements.completionSignal = {
-          _signalType: PC.Constants.SIGNAL_TYPES.SITE_SPECIFIC,
-          _siteName: siteName,
-          _detectionMethod: 'responseDetector',
-          // Also store a fingerprint of the response container as fallback
-          _responseFingerprint: result.element ? PC.SelectorEngine.fingerprint(result.element) : null,
-          meta: {
-            tagName: result.element?.tagName?.toLowerCase() || 'unknown',
-            recordedAt: PC.Utils.timestamp(),
-            recordedOnURL: window.location.hostname,
-          },
-        };
-
-        this._overlay.removeWaiting();
+        this._recipe.elements.streamingIndicator = fingerprint;
 
         PC.Logger.recordStep({
-          step: STEPS.COMPLETION_SIGNAL,
-          method: 'siteSpecific',
-          siteName,
-          duration: result.duration,
+          step: 'STREAMING_INDICATOR',
+          tagName: element.tagName.toLowerCase(),
+          text: PC.Utils.truncate(element.textContent, 30),
         });
 
-        PC.Messages.send(MSG.RECORDING_STEP, {
-          step: STEPS.COMPLETION_SIGNAL,
-          completed: true,
-          method: 'siteSpecific',
-        });
+        console.log('[Recorder] ✅ Step 3 complete — recorded stop button');
 
-        console.log(`[Recorder] ✅ Step 3 complete — using ${siteName} auto-detection`);
+        // ─── Phase C: Wait for the stop button to disappear ───
+         await this._step3_waitForResponseEnd(fingerprint);
 
-        // Brief pause before step 4
-        await PC.Utils.sleep(1000);
-
-      } catch (err) {
-        console.warn(`[Recorder] Site-specific detection failed: ${err.message}`);
-        console.log('[Recorder] Falling back to manual detection...');
-
-        // Fall back to manual
-        this._overlay.removeWaiting();
-        await this._step3_manual();
-      }
+  } catch (err) {
+    if (this._cancelled) {
+      throw new Error('Recording cancelled');
     }
+    // Picker cancelled = user clicked "Skip"
+    console.log('[Recorder] Step 3 skipped — no streaming indicator');
+    PC.Logger.recordStep({ step: 'STREAMING_INDICATOR', skipped: true });
+  }
 
-    /**
-     * Step 3 for unknown sites — manual stop button detection.
-     */
-    async _step3_manual() {
-      // Phase A: Tell user to send a test message
+  await PC.Utils.sleep(500);
+}
+
+/**
+ * Phase C: Races auto-detection (element disappears) against
+ * a manual "Response Finished" button. Whichever fires first wins.
+ */
+_step3_waitForResponseEnd(fingerprint) {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const settle = (method) => {
+      if (settled) return;
+      settled = true;
+      console.log(`[Recorder] AI response ended (detected via: ${method})`);
+      resolve();
+    };
+
+    // ── Show banner with manual override button ──
+    this._overlay.showBanner({
+      stepLabel: '3/5',
+      text: '⏳ Waiting for AI to finish responding…',
+      totalSteps: 5,
+      currentStep: 2,
+      showDone: true,
+      doneLabel: '✔ Response Finished',
+      onDone: () => settle('manual'),
+      onCancel: () => {
+        if (!settled) {
+          settled = true;
+          this.cancel();
+          resolve();
+        }
+      },
+    });
+
+    // ── Auto-detection runs in parallel ──
+    this._waitForElementToDisappear(fingerprint, 180000).then((disappeared) => {
+      if (disappeared) {
+        settle('auto-detect');
+      } else {
+        // Timed out — update banner to nudge the user
+        if (!settled) {
+          this._overlay.updateBannerText(
+            '⚠️ Could not detect response end automatically. Click "Response Finished" when ready.'
+          );
+        }
+      }
+    });
+  });
+}
+
+    // ══════════════════════════════════════════════════════════════
+    //  STEP 4: COMPLETION INDICATOR (Required)
+    // ══════════════════════════════════════════════════════════════
+
+    async _step4_completionIndicator() {
       this._overlay.showBanner({
-        stepLabel: '3/4',
-        text: '⏳ Type a SHORT test message and SEND IT manually. Wait for a Stop/Cancel button to appear...',
-        totalSteps: 4,
-        currentStep: 2,
+        stepLabel: '4/5',
+        text: '✅ Now click an element that APPEARED when the AI FINISHED (send button, copy button, thumbs up, etc.)',
+        totalSteps: 5,
+        currentStep: 3,
         onCancel: () => this.cancel(),
       });
 
+      // Show helpful examples
       this._overlay.showWaiting(
-        'Waiting for you to send a message... When a Stop/Cancel button appears, the banner will update.'
+        'Click ANY element that indicates the response is complete:\n' +
+        '• The send button (if it came back)\n' +
+        '• Copy/Share button\n' +
+        '• Thumbs up/down buttons\n' +
+        '• "Regenerate" button\n' +
+        '• Any element that only appears when done'
       );
-
-      // Phase B: Wait for some DOM activity (user interacting)
-      await this._waitForDOMActivity(5);
-      this._checkCancelled();
-
-      // Phase C: Prompt user to click the stop button
-      this._overlay.removeWaiting();
-      this._overlay.showBanner({
-        stepLabel: '3/4',
-        text: '🛑 Great! Now CLICK on the STOP / CANCEL button that appeared while the AI is responding',
-        totalSteps: 4,
-        currentStep: 2,
-        onCancel: () => this.cancel(),
-      });
 
       const element = await this._picker.start();
 
-      const fingerprint = PC.SelectorEngine.fingerprint(element);
-      fingerprint._signalType = PC.Constants.SIGNAL_TYPES.ELEMENT_DISAPPEARS;
+      this._overlay.removeWaiting();
 
-      this._recipe.elements.completionSignal = fingerprint;
+      // Fingerprint the completion indicator
+      const fingerprint = PC.SelectorEngine.fingerprint(element);
+      fingerprint._indicatorType = 'completion';
+      fingerprint._signalType = PC.Constants.SIGNAL_TYPES.ELEMENT_APPEARS;
+
+      // Record additional info about the element's current state
+      fingerprint._recordedState = {
+        wasDisabled: element.disabled || element.getAttribute('aria-disabled') === 'true',
+        wasHidden: window.getComputedStyle(element).display === 'none',
+        hadText: (element.textContent || '').trim().slice(0, 50),
+        tagName: element.tagName.toLowerCase(),
+      };
+
+      this._recipe.elements.completionIndicator = fingerprint;
+
+      // Determine what type of completion signal this is
+      const completionType = this._guessCompletionType(element);
+      fingerprint._completionType = completionType;
 
       PC.Logger.recordStep({
-        step: STEPS.COMPLETION_SIGNAL,
+        step: 'COMPLETION_INDICATOR',
         tagName: element.tagName.toLowerCase(),
         text: PC.Utils.truncate(element.textContent, 30),
-        signalType: 'elementDisappears',
+        completionType,
       });
 
       PC.Messages.send(MSG.RECORDING_STEP, {
-        step: STEPS.COMPLETION_SIGNAL,
+        step: 'COMPLETION_INDICATOR',
         completed: true,
+        completionType,
       });
 
-      console.log('[Recorder] ✅ Step 3 complete — recorded stop/cancel button');
+      console.log(`[Recorder] ✅ Step 4 complete — recorded completion indicator (${completionType})`);
 
-      // Wait for AI to finish before step 4
-      this._overlay.showWaiting('Waiting for AI to finish responding...');
-      await this._waitForElementToDisappear(fingerprint, 120000);
-      this._overlay.removeWaiting();
-
-      await PC.Utils.sleep(1500);
+      // Brief pause
+      await PC.Utils.sleep(500);
     }
 
 
-    // ── Step 4: Record Extra Action (Optional) ───────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  STEP 5: EXTRA ACTION (Optional)
+    // ══════════════════════════════════════════════════════════════
 
-    async _step4_extraAction() {
-      // Wrap in a Promise so skip and cancel both resolve cleanly
+    async _step5_extraAction() {
       return new Promise(async (resolveStep) => {
-
         this._overlay.showBanner({
-          stepLabel: '4/4',
-          text: '🎯 (Optional) Click an EXTRA ACTION element — copy button, download, "Continue", etc.',
-          totalSteps: 4,
-          currentStep: 3,
+          stepLabel: '5/5',
+          text: '🎯 (Optional) Click an EXTRA ACTION to run after each response — copy, download, continue, etc.',
+          totalSteps: 5,
+          currentStep: 4,
           showSkip: true,
           onSkip: () => {
-            // Stop the picker — this rejects its Promise
             this._picker.stop();
           },
           onCancel: () => {
@@ -726,7 +710,6 @@
         try {
           const element = await this._picker.start();
 
-          // If we get here, user picked an element
           const fingerprint = PC.SelectorEngine.fingerprint(element);
           fingerprint._actionType = this._guessExtraActionType(element);
 
@@ -744,18 +727,14 @@
             completed: true,
           });
 
-          console.log(`[Recorder] ✅ Step 4 complete — recorded extra action (${fingerprint._actionType})`);
+          console.log(`[Recorder] ✅ Step 5 complete — recorded extra action (${fingerprint._actionType})`);
 
         } catch (err) {
-          // Picker was cancelled — either skip or escape
-          // For step 4 this is fine, we just move on
-          // But if the whole wizard was cancelled, re-throw
           if (this._cancelled) {
             resolveStep();
             throw new Error('Recording cancelled');
           }
-
-          console.log('[Recorder] Step 4 skipped');
+          console.log('[Recorder] Step 5 skipped');
           PC.Logger.recordStep({ step: STEPS.EXTRA_ACTION, skipped: true });
         }
 
@@ -764,18 +743,23 @@
     }
 
 
-    // ── Save Recipe ──────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  SAVE RECIPE
+    // ══════════════════════════════════════════════════════════════
 
     async _saveRecipe() {
       const recipe = this._recipe;
       const existing = await PC.Storage.recipes.getByDomain(recipe.domain);
+
+      // For backwards compatibility, also set completionSignal
+      // (older code might look for this)
+      recipe.elements.completionSignal = recipe.elements.completionIndicator;
 
       if (existing) {
         const updated = await PC.Storage.recipes.update(existing.id, {
           name: recipe.name,
           elements: recipe.elements,
           settings: recipe.settings,
-          siteInfo: recipe.siteInfo,
           lastHealthCheck: PC.Utils.timestamp(),
           healthStatus: 'healthy',
         });
@@ -787,7 +771,6 @@
           domain: recipe.domain,
           elements: recipe.elements,
           settings: recipe.settings,
-          siteInfo: recipe.siteInfo,
           lastHealthCheck: PC.Utils.timestamp(),
           healthStatus: 'healthy',
         });
@@ -797,7 +780,9 @@
     }
 
 
-    // ── Helpers ───────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  HELPERS
+    // ══════════════════════════════════════════════════════════════
 
     _waitForDOMActivity(minMutations) {
       return new Promise((resolve) => {
@@ -834,6 +819,17 @@
             resolve(true);
             return;
           }
+
+          // Also check if element became invisible
+          const el = match.element;
+          if (el) {
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+              resolve(true);
+              return;
+            }
+          }
+
           if (Date.now() - startTime > timeout) {
             console.warn('[Recorder] Timed out waiting for element to disappear');
             resolve(false);
@@ -844,6 +840,46 @@
 
         setTimeout(check, 1000);
       });
+    }
+
+    _guessCompletionType(element) {
+      const text = (element.textContent || '').toLowerCase().trim();
+      const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
+      const combined = text + ' ' + ariaLabel;
+      const tag = element.tagName.toLowerCase();
+
+      // Send button returned
+      if (combined.includes('send') || combined.includes('submit')) {
+        return 'sendButton';
+      }
+
+      // Copy button
+      if (combined.includes('copy') || combined.includes('clipboard')) {
+        return 'copyButton';
+      }
+
+      // Regenerate
+      if (combined.includes('regenerate') || combined.includes('retry') || combined.includes('again')) {
+        return 'regenerateButton';
+      }
+
+      // Thumbs / Feedback
+      if (combined.includes('good') || combined.includes('bad') ||
+        combined.includes('thumb') || combined.includes('like') || combined.includes('dislike')) {
+        return 'feedbackButton';
+      }
+
+      // Share
+      if (combined.includes('share')) {
+        return 'shareButton';
+      }
+
+      // Generic button
+      if (tag === 'button' || element.getAttribute('role') === 'button') {
+        return 'genericButton';
+      }
+
+      return 'otherElement';
     }
 
     _guessExtraActionType(element) {
@@ -857,6 +893,9 @@
       if (combined.includes('download') || combined.includes('save') || combined.includes('export')) {
         return PC.Constants.EXTRA_ACTION_TYPES.DOWNLOAD;
       }
+      if (combined.includes('continue') || combined.includes('more') || combined.includes('expand')) {
+        return PC.Constants.EXTRA_ACTION_TYPES.CONTINUE;
+      }
       return PC.Constants.EXTRA_ACTION_TYPES.CLICK;
     }
 
@@ -864,7 +903,6 @@
       this._active = false;
       this._overlay.removeAll();
       this._recipe = null;
-      this._siteConfig = null;
 
       document.querySelectorAll('.pc-highlight-element').forEach((el) => {
         el.classList.remove('pc-highlight-element');
@@ -895,9 +933,6 @@
       return wizard.isActive;
     },
 
-    /**
-     * Message handlers to be registered by main.js.
-     */
     _messageHandlers: {
       [MSG.START_RECORDING]: async (message) => {
         if (wizard.isActive) {
