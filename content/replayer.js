@@ -32,6 +32,7 @@
      * @param {number} [opts.timeout] - Max wait for element (ms)
      * @returns {Promise<object>} { success, confidence, method, inputType }
      */
+
     async injectText(fingerprint, text, opts = {}) {
       const timeout = opts.timeout || 10000;
 
@@ -47,7 +48,21 @@
       }
 
       const element = match.element;
-      const inputType = fingerprint._inputType || this._detectInputType(element);
+
+      // ══════════════════════════════════════════════════════════════
+      // ⬇️ ADD THIS BLOCK HERE — Walk up to contenteditable ancestor
+      // ══════════════════════════════════════════════════════════════
+      let target = element;
+      if (!target.getAttribute('contenteditable') && target.closest('[contenteditable="true"]')) {
+        target = target.closest('[contenteditable="true"]');
+        console.log('[Replayer] Walked up to contenteditable ancestor:', target.tagName);
+      }
+      // ══════════════════════════════════════════════════════════════
+
+      // Now use `target` instead of `element` for inputType detection
+      const inputType = (fingerprint._inputType && fingerprint._inputType !== 'unknown')
+        ? fingerprint._inputType
+        : this._detectInputType(target);  // ⬅️ Changed to `target`
 
       console.log(
         `[Replayer] Injecting text — type: ${inputType}, ` +
@@ -56,7 +71,7 @@
 
       try {
         // Focus the element first
-        element.focus();
+        target.focus();  // ⬅️ Changed to `target`
 
         // Small delay for focus to register
         await PC.Utils.sleep(100);
@@ -65,22 +80,22 @@
         switch (inputType) {
           case 'textarea':
           case 'input':
-            this._injectIntoNativeInput(element, text);
+            this._injectIntoNativeInput(target, text);  // ⬅️ Changed to `target`
             break;
 
           case 'contenteditable':
-            this._injectIntoContentEditable(element, text);
+            this._injectIntoContentEditable(target, text);  // ⬅️ Changed to `target`
             break;
 
           default:
             // Try to auto-detect
-            if (element.getAttribute('contenteditable') === 'true') {
-              this._injectIntoContentEditable(element, text);
-            } else if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
-              this._injectIntoNativeInput(element, text);
+            if (target.getAttribute('contenteditable') === 'true' || target.closest('[contenteditable="true"]')) {
+              this._injectIntoContentEditable(target.closest('[contenteditable="true"]') || target, text);
+            } else if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
+              this._injectIntoNativeInput(target, text);
             } else {
               // Last resort: try native input approach
-              this._injectIntoNativeInput(element, text);
+              this._injectIntoNativeInput(target, text);
             }
         }
 
@@ -148,7 +163,7 @@
         };
       }
 
-      
+
 
       // Send button not found — try Enter key fallback
       console.warn('[Replayer] Send button not found — trying Enter key fallback');
@@ -335,16 +350,25 @@
       if (element.tagName === 'TEXTAREA') return 'textarea';
       if (element.tagName === 'INPUT') return 'input';
       if (element.getAttribute('role') === 'textbox') return 'contenteditable';
+
+      // NEW: Check if a parent is contenteditable (Quill, ProseMirror, etc.)
+      let parent = element.parentElement;
+      while (parent) {
+        if (parent.getAttribute('contenteditable') === 'true') return 'contenteditable';
+        if (parent.classList.contains('ql-editor')) return 'contenteditable';
+        parent = parent.parentElement;
+      }
+
       return 'unknown';
     },
 
-     /**
-     * Verify that injected text is still present in the input.
-     * Returns the current text content, or empty string if cleared.
-     *
-     * @param {object} fingerprint - The targetInput fingerprint
-     * @returns {Promise<string>} current text in the input
-     */
+    /**
+    * Verify that injected text is still present in the input.
+    * Returns the current text content, or empty string if cleared.
+    *
+    * @param {object} fingerprint - The targetInput fingerprint
+    * @returns {Promise<string>} current text in the input
+    */
     async getInputText(fingerprint) {
       const match = PC.SelectorEngine.find(fingerprint);
       if (!match) return '';

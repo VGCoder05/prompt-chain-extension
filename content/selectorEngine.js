@@ -298,6 +298,9 @@
           /^[A-Z][a-z]{4,}[A-Z]/, // camelCase hashes (e.g., "aBcDeF")
           /^jsx-[a-f0-9]+/,        // Next.js JSX styles
           /^svelte-[a-z0-9]+/,     // Svelte scoped styles
+          /^ng-tns-c\d+-\d+$/,     // Angular dynamic classes
+          /^ng-star-inserted$/,    // Angular structural directive
+          /^ng-trigger/,           // Angular animation triggers
         ];
 
         return !hashPatterns.some((pattern) => pattern.test(cls));
@@ -353,13 +356,26 @@
 
     /**
      * Find an element on the current page matching a stored fingerprint.
-     * Tries all 6 strategies, scores each candidate, returns the best.
+     * Tries all strategies, scores each candidate, returns the best.
      *
      * @param {object} fingerprint - Previously generated fingerprint
      * @returns {object|null} { element, confidence, method } or null
      */
     find(fingerprint) {
       if (!fingerprint) return null;
+
+      // Detect what type of element we're looking for (for specialized fallbacks)
+      const elementType = this._detectElementType(fingerprint);
+
+      // ══════════════════════════════════════════════════════════════
+      // DEBUG: Log what we're searching for
+      // ══════════════════════════════════════════════════════════════
+      console.log('[SelectorEngine] 🔍 Attempting to find element:', {
+        type: elementType,
+        tagName: fingerprint.meta?.tagName,
+        dataAttrs: fingerprint.attributes?.dataAttributes,
+        classes: fingerprint.attributes?.classes?.filter(c => !c.startsWith('ng-')).slice(0, 5),
+      });
 
       const candidates = [];
 
@@ -384,10 +400,35 @@
       // Strategy 7: Try contenteditable + role matching
       this._trySemanticMatch(fingerprint, candidates);
 
+      // Strategy 8: Try data-* attribute matching (for Material icons)
+      this._tryDataAttributes(fingerprint, candidates);
+
+      // ══════════════════════════════════════════════════════════════
+      // SPECIALIZED FALLBACKS based on element type
+      // ══════════════════════════════════════════════════════════════
+
+      // Strategy 9: Rich text editor fallback
+      if (elementType === 'input' || elementType === 'unknown') {
+        this._tryRichEditorFallback(fingerprint, candidates);
+      }
+
+      // Strategy 10: Send button fallback
+      if (elementType === 'sendButton') {
+        this._trySendButtonFallback(fingerprint, candidates);
+      }
+
+      // Strategy 11: Completion indicator fallback (mic button, etc.)
+      if (elementType === 'completionIndicator') {
+        this._tryCompletionIndicatorFallback(fingerprint, candidates);
+      }
+
       // ── Deduplicate candidates (same element found by multiple methods) ──
       const deduped = this._deduplicateCandidates(candidates);
 
-      if (deduped.length === 0) return null;
+      if (deduped.length === 0) {
+        console.warn('[SelectorEngine] ❌ No candidates found for fingerprint');
+        return null;
+      }
 
       // Sort by confidence descending
       deduped.sort((a, b) => b.confidence - a.confidence);
@@ -399,6 +440,53 @@
       );
 
       return deduped[0];
+    },
+
+    /**
+     * Detect what type of element we're trying to find.
+     * This helps us choose the right fallback strategies.
+     */
+    _detectElementType(fp) {
+      const dataAttrs = fp.attributes?.dataAttributes || {};
+      const classes = fp.attributes?.classes || [];
+      const parentClasses = fp.domPosition?.parentClasses || [];
+      const tagName = fp.meta?.tagName || fp.attributes?.tagName;
+
+      // Check for send button indicators
+      if (
+        dataAttrs['data-mat-icon-name'] === 'send' ||
+        classes.some(c => c.includes('send')) ||
+        parentClasses.some(c => c.includes('send'))
+      ) {
+        return 'sendButton';
+      }
+
+      // Check for completion indicator (mic button, etc.)
+      if (
+        dataAttrs['data-mat-icon-name'] === 'mic' ||
+        classes.some(c => c.includes('mic') || c.includes('speech') || c.includes('dictation')) ||
+        parentClasses.some(c => c.includes('mic') || c.includes('speech'))
+      ) {
+        return 'completionIndicator';
+      }
+
+      // Check for input/editor
+      if (
+        fp.attributes?.contentEditable === 'true' ||
+        tagName === 'textarea' ||
+        tagName === 'input' ||
+        parentClasses.some(c => c.includes('ql-editor') || c.includes('editor')) ||
+        classes.some(c => c.includes('ql-') || c.includes('editor'))
+      ) {
+        return 'input';
+      }
+
+      // Check for generic button
+      if (tagName === 'button' || fp.attributes?.role === 'button') {
+        return 'button';
+      }
+
+      return 'unknown';
     },
 
     /**
@@ -451,12 +539,27 @@
     },
 
 
-    // ── Individual Strategy Implementations ───────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  Individual Strategy Implementations
+    // ══════════════════════════════════════════════════════════════
 
     _tryBestSelector(fp, candidates) {
       if (!fp.bestSelector) return;
       try {
-        const el = document.querySelector(fp.bestSelector);
+        // Try original first
+        let el = document.querySelector(fp.bestSelector);
+
+        // If not found, try with dynamic classes stripped
+        if (!el) {
+          const cleaned = this._stripDynamicClasses(fp.bestSelector);
+          if (cleaned && cleaned !== fp.bestSelector) {
+            console.log('[SelectorEngine] Trying cleaned bestSelector:', cleaned.substring(0, 80));
+            try {
+              el = document.querySelector(cleaned);
+            } catch { /* invalid selector after cleaning */ }
+          }
+        }
+
         if (el && this._isVisible(el)) {
           // Confidence depends on what kind of selector it is
           let confidence = 0.90;
@@ -482,9 +585,22 @@
     _tryCSSPath(fp, candidates) {
       if (!fp.cssPath) return;
       try {
-        const el = document.querySelector(fp.cssPath);
+        // Try original
+        let el = document.querySelector(fp.cssPath);
+
+        // If not found, try cleaned version
+        if (!el) {
+          const cleaned = this._stripDynamicClasses(fp.cssPath);
+          if (cleaned && cleaned !== fp.cssPath) {
+            console.log('[SelectorEngine] Trying cleaned cssPath:', cleaned.substring(0, 80));
+            try {
+              el = document.querySelector(cleaned);
+            } catch { /* invalid selector after cleaning */ }
+          }
+        }
+
         if (el && this._isVisible(el)) {
-          candidates.push({ element: el, confidence: 0.88, method: 'cssPath' });
+          candidates.push({ element: el, confidence: 0.85, method: 'cssPath' });
         }
       } catch { /* cssPath might be invalid if DOM restructured */ }
     },
@@ -500,10 +616,20 @@
           null
         );
         const el = result.singleNodeValue;
+
+        console.log('[SelectorEngine] XPath result:', {
+          xpath: fp.xpath.substring(0, 80),
+          found: !!el,
+          isVisible: el ? this._isVisible(el) : false,
+          tagName: el?.tagName,
+        });
+
         if (el && el instanceof HTMLElement && this._isVisible(el)) {
           candidates.push({ element: el, confidence: 0.82, method: 'xpath' });
         }
-      } catch { /* xpath might be invalid */ }
+      } catch (e) {
+        console.error('[SelectorEngine] XPath error:', e.message);
+      }
     },
 
     _tryAttributes(fp, candidates) {
@@ -621,8 +747,394 @@
       }
     },
 
+    /**
+     * Strategy 8: Try matching by data-* attributes
+     * Very useful for Material Design icons (data-mat-icon-name, etc.)
+     */
+    _tryDataAttributes(fp, candidates) {
+      const dataAttrs = fp.attributes?.dataAttributes || {};
+      const dataKeys = Object.keys(dataAttrs);
 
-    // ── Scoring Helpers ───────────────────────────────────────────
+      if (dataKeys.length === 0) return;
+
+      // Build selector from data attributes
+      for (const key of dataKeys) {
+        const value = dataAttrs[key];
+        if (!value) continue;
+
+        try {
+          const selector = `[${key}="${CSS.escape(value)}"]`;
+          const els = document.querySelectorAll(selector);
+
+          for (const el of els) {
+            if (!this._isVisible(el)) continue;
+
+            // Check if tag matches for higher confidence
+            const tagMatch = el.tagName.toLowerCase() === fp.attributes?.tagName;
+
+            candidates.push({
+              element: el,
+              confidence: tagMatch ? 0.88 : 0.75,
+              method: 'dataAttribute',
+            });
+          }
+        } catch { /* invalid selector */ }
+      }
+    },
+
+    /**
+     * Strategy 9: Rich text editor fallback (Quill, ProseMirror, etc.)
+     */
+    _tryRichEditorFallback(fp, candidates) {
+      const parentClasses = fp.domPosition?.parentClasses || [];
+      const allClasses = fp.attributes?.classes || [];
+      const tagName = fp.meta?.tagName || fp.attributes?.tagName;
+
+      const editorIndicators = [
+        'ql-editor', 'ql-container', 'ql-blank', 'ql-bubble',
+        'ProseMirror', 'tiptap',
+        'textarea', 'text-input',
+        'rich-textarea', 'contenteditable'
+      ];
+
+      const isLikelyEditor =
+        parentClasses.some(c => editorIndicators.some(ind => c.includes(ind))) ||
+        allClasses.some(c => editorIndicators.some(ind => c.includes(ind))) ||
+        tagName === 'p' ||
+        tagName === 'div';
+
+      if (!isLikelyEditor) return;
+
+      console.log('[SelectorEngine] Trying rich editor fallback...');
+
+      // Quill selectors
+      const quillSelectors = [
+        '.ql-editor[contenteditable="true"]',
+        'rich-textarea .ql-editor',
+        '[contenteditable="true"].ql-editor',
+        'div.ql-editor.textarea',
+        '.ql-editor',
+      ];
+
+      for (const selector of quillSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && this._isVisible(el)) {
+            console.log(`[SelectorEngine] ✅ Found Quill editor: ${selector}`);
+            candidates.push({
+              element: el,
+              confidence: 0.75,
+              method: 'richEditorFallback',
+            });
+            return;
+          }
+        } catch { /* invalid selector */ }
+      }
+
+      // ProseMirror
+      const proseMirrorSelectors = [
+        '.ProseMirror[contenteditable="true"]',
+        '.ProseMirror',
+      ];
+
+      for (const selector of proseMirrorSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && this._isVisible(el)) {
+            console.log(`[SelectorEngine] ✅ Found ProseMirror: ${selector}`);
+            candidates.push({
+              element: el,
+              confidence: 0.75,
+              method: 'richEditorFallback',
+            });
+            return;
+          }
+        } catch { /* invalid selector */ }
+      }
+
+      // Generic contenteditable in input area
+      const editables = document.querySelectorAll('[contenteditable="true"]');
+      for (const el of editables) {
+        if (!this._isVisible(el)) continue;
+
+        const isMainInput = el.closest(
+          'input-area-v2, input-area, .input-area, .chat-input, .message-input, ' +
+          'input-container, .input-container, .composer, .chat-composer'
+        );
+
+        if (isMainInput) {
+          console.log('[SelectorEngine] ✅ Found contenteditable in input area');
+          candidates.push({
+            element: el,
+            confidence: 0.70,
+            method: 'contenteditableFallback',
+          });
+          return;
+        }
+      }
+    },
+
+    /**
+     * Strategy 10: Send button fallback
+     * Looks for common send button patterns (Material icons, aria-labels, classes)
+     */
+    _trySendButtonFallback(fp, candidates) {
+      console.log('[SelectorEngine] Trying send button fallback...');
+
+      // Method 1: Material icon with data-mat-icon-name="send"
+      const matIconSend = document.querySelector('mat-icon[data-mat-icon-name="send"]');
+      if (matIconSend && this._isVisible(matIconSend)) {
+        // Return the icon itself or the parent button
+        const button = matIconSend.closest('button') || matIconSend;
+        console.log('[SelectorEngine] ✅ Found send button via mat-icon[data-mat-icon-name="send"]');
+        candidates.push({
+          element: button,
+          confidence: 0.85,
+          method: 'sendButtonMatIcon',
+        });
+        return;
+      }
+
+      // Method 2: Button/icon with send-related classes
+      const sendClassSelectors = [
+        'button.send-button',
+        '.send-button button',
+        '.send-button-container button',
+        '[class*="send-button"]',
+        'button[class*="send"]',
+        'mat-icon.send-button-icon',
+        '.send-button-icon',
+      ];
+
+      for (const selector of sendClassSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && this._isVisible(el)) {
+            const button = el.closest('button') || el;
+            console.log(`[SelectorEngine] ✅ Found send button via: ${selector}`);
+            candidates.push({
+              element: button,
+              confidence: 0.80,
+              method: 'sendButtonClass',
+            });
+            return;
+          }
+        } catch { /* invalid selector */ }
+      }
+
+      // Method 3: aria-label containing "send"
+      const ariaLabelSelectors = [
+        'button[aria-label*="Send" i]',
+        'button[aria-label*="send" i]',
+        '[role="button"][aria-label*="send" i]',
+      ];
+
+      for (const selector of ariaLabelSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && this._isVisible(el)) {
+            console.log(`[SelectorEngine] ✅ Found send button via: ${selector}`);
+            candidates.push({
+              element: el,
+              confidence: 0.78,
+              method: 'sendButtonAriaLabel',
+            });
+            return;
+          }
+        } catch { /* invalid selector */ }
+      }
+
+      // Method 4: Button inside send-button-container
+      const containerSelectors = [
+        '.send-button-container button',
+        'div[class*="send"] button',
+        '.input-buttons-wrapper-bottom button:last-child',
+      ];
+
+      for (const selector of containerSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && this._isVisible(el)) {
+            console.log(`[SelectorEngine] ✅ Found send button via container: ${selector}`);
+            candidates.push({
+              element: el,
+              confidence: 0.70,
+              method: 'sendButtonContainer',
+            });
+            return;
+          }
+        } catch { /* invalid selector */ }
+      }
+
+      // Method 5: Look for icon with "send" text content (Google Symbols font)
+      const allMatIcons = document.querySelectorAll('mat-icon');
+      for (const icon of allMatIcons) {
+        if (!this._isVisible(icon)) continue;
+        const text = (icon.textContent || '').trim().toLowerCase();
+        if (text === 'send' || text === 'arrow_upward') {
+          const button = icon.closest('button') || icon;
+          console.log('[SelectorEngine] ✅ Found send button via icon text content');
+          candidates.push({
+            element: button,
+            confidence: 0.75,
+            method: 'sendButtonIconText',
+          });
+          return;
+        }
+      }
+
+      console.log('[SelectorEngine] Send button fallback found nothing');
+    },
+
+    /**
+     * Strategy 11: Completion indicator fallback
+     * Looks for mic button or other indicators that response is complete
+     */
+    _tryCompletionIndicatorFallback(fp, candidates) {
+      console.log('[SelectorEngine] Trying completion indicator fallback...');
+
+      // Method 1: Material icon with data-mat-icon-name="mic"
+      const matIconMic = document.querySelector('mat-icon[data-mat-icon-name="mic"]');
+      if (matIconMic && this._isVisible(matIconMic)) {
+        console.log('[SelectorEngine] ✅ Found completion indicator via mat-icon[data-mat-icon-name="mic"]');
+        candidates.push({
+          element: matIconMic,
+          confidence: 0.85,
+          method: 'completionMicIcon',
+        });
+        return;
+      }
+
+      // Method 2: Speech/mic button classes
+      const micClassSelectors = [
+        'speech-dictation-mic-button',
+        '.speech-dictation-mic-button',
+        '[class*="mic-button"]',
+        '[class*="speech-dictation"]',
+        '.mic-button-container button',
+        '.mic-button-container mat-icon',
+        'button[class*="mic"]',
+      ];
+
+      for (const selector of micClassSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && this._isVisible(el)) {
+            console.log(`[SelectorEngine] ✅ Found completion indicator via: ${selector}`);
+            candidates.push({
+              element: el,
+              confidence: 0.80,
+              method: 'completionMicClass',
+            });
+            return;
+          }
+        } catch { /* invalid selector */ }
+      }
+
+      // Method 3: aria-label containing "mic" or "voice"
+      const ariaLabelSelectors = [
+        'button[aria-label*="mic" i]',
+        'button[aria-label*="voice" i]',
+        'button[aria-label*="speech" i]',
+        '[aria-label*="microphone" i]',
+      ];
+
+      for (const selector of ariaLabelSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && this._isVisible(el)) {
+            console.log(`[SelectorEngine] ✅ Found completion indicator via: ${selector}`);
+            candidates.push({
+              element: el,
+              confidence: 0.75,
+              method: 'completionAriaLabel',
+            });
+            return;
+          }
+        } catch { /* invalid selector */ }
+      }
+
+      // Method 4: Look for mat-icon with "mic" text content
+      const allMatIcons = document.querySelectorAll('mat-icon');
+      for (const icon of allMatIcons) {
+        if (!this._isVisible(icon)) continue;
+        const text = (icon.textContent || '').trim().toLowerCase();
+        if (text === 'mic' || text === 'mic_none' || text === 'keyboard_voice') {
+          console.log('[SelectorEngine] ✅ Found completion indicator via icon text content');
+          candidates.push({
+            element: icon,
+            confidence: 0.75,
+            method: 'completionIconText',
+          });
+          return;
+        }
+      }
+
+      // Method 5: Alternative completion indicators (stop button disappearing, etc.)
+      // Look for the input area being enabled/ready
+      const inputAreaSelectors = [
+        'input-area-v2:not(.disabled)',
+        '.input-area:not(.disabled)',
+        'rich-textarea:not([disabled])',
+      ];
+
+      for (const selector of inputAreaSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && this._isVisible(el)) {
+            // Check if there's no "stop" button visible (indicating generation stopped)
+            const stopButton = document.querySelector('[aria-label*="Stop" i], [data-mat-icon-name="stop"]');
+            if (!stopButton || !this._isVisible(stopButton)) {
+              console.log('[SelectorEngine] ✅ Found completion indicator via input area ready + no stop button');
+              candidates.push({
+                element: el,
+                confidence: 0.65,
+                method: 'completionInputReady',
+              });
+              return;
+            }
+          }
+        } catch { /* invalid selector */ }
+      }
+
+      console.log('[SelectorEngine] Completion indicator fallback found nothing');
+    },
+
+
+    // ══════════════════════════════════════════════════════════════
+    //  Scoring & Helper Methods
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Remove Angular dynamic class indices from a selector.
+     * ng-tns-c1234567-89 → removed entirely
+     */
+    _stripDynamicClasses(selector) {
+      if (!selector) return selector;
+
+      try {
+        let cleaned = selector
+          // Angular dynamic classes
+          .replace(/\.ng-tns-c\d+-\d+/g, '')
+          .replace(/\.ng-star-inserted/g, '')
+          .replace(/\.ng-trigger[^\s.\[:>]*/g, '')
+          .replace(/\.ng-animating/g, '')
+          // Clean up any resulting issues
+          .replace(/\.+/g, '.')           // multiple dots → single dot
+          .replace(/\.\s*>/g, ' >')        // ". >" → " >"
+          .replace(/\.\s*:/g, ':')         // ".:" → ":"
+          .replace(/\.\s*\[/g, '[')        // ".[" → "["
+          .replace(/\s+/g, ' ')            // multiple spaces → single space
+          .replace(/\.\s*$/g, '')          // trailing dot
+          .trim();
+
+        // Validate the cleaned selector works
+        document.querySelector(cleaned);
+        return cleaned;
+      } catch {
+        return null;
+      }
+    },
 
     /**
      * Score how similar an element's attributes are to a stored fingerprint.
@@ -640,11 +1152,20 @@
         return 0; // Wrong tag = not a match
       }
 
-      // Classes overlap
+      // Classes overlap (filter out dynamic Angular classes)
       if (storedAttrs.classes && storedAttrs.classes.length > 0) {
         maxScore += 0.25;
-        const matched = storedAttrs.classes.filter((c) => element.classList.contains(c));
-        score += 0.25 * (matched.length / storedAttrs.classes.length);
+        const stableStoredClasses = storedAttrs.classes.filter(
+          c => !c.startsWith('ng-tns-') && c !== 'ng-star-inserted' && !c.startsWith('ng-trigger')
+        );
+        const stableElementClasses = [...element.classList].filter(
+          c => !c.startsWith('ng-tns-') && c !== 'ng-star-inserted' && !c.startsWith('ng-trigger')
+        );
+
+        if (stableStoredClasses.length > 0) {
+          const matched = stableStoredClasses.filter(c => stableElementClasses.includes(c));
+          score += 0.25 * (matched.length / stableStoredClasses.length);
+        }
       }
 
       // aria-label
@@ -835,4 +1356,6 @@
       };
     },
   };
+
+  console.log('[PC SelectorEngine] ✅ Module loaded');
 })();
