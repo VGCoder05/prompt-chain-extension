@@ -374,12 +374,12 @@
       if (!match) return '';
 
       const el = match.element;
-      const inputType = fingerprint._inputType || this._detectInputType(el);
+      const inputType = fingerprint._inputType || this._detectInputType(el);  // ❌ "unknown" is truthy!
 
       if (inputType === 'contenteditable') {
         return (el.innerText || el.textContent || '').trim();
       }
-      return (el.value || '').trim();
+      return (el.value || '').trim();  // ❌ Falls here! .ql-editor has no .value → returns ''
     },
 
     /**
