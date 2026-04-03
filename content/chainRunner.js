@@ -75,6 +75,9 @@
         throw new Error('A chain is already running');
       }
 
+      // Initialize ResponseDetector for site-specific features
+      PC.ResponseDetector.init();
+
       // ── Setup ───────────────────────────────────────────
       this.recipe = recipe;
       this.queue = chain.prompts || [];
@@ -261,7 +264,7 @@
             signal
           );
 
-           // ── B. INJECT TEXT (with verification) ─────────
+          // ── B. INJECT TEXT (with verification) ─────────
           const injectResult = await PC.Replayer.injectAndVerify(
             this.recipe.elements.targetInput,
             prompt,
@@ -323,23 +326,70 @@
           // ── F. WAIT FOR COMPLETION ─────────────────────
           PC.Logger.waitStart({ promptIndex: index });
 
-          const completionResult = await PC.CompletionDetector.waitForCompletion(
-            this.recipe.elements.completionSignal,
-            {
-              maxWaitTime: this.settings.maxWaitTime,
-              pollInterval: this.settings.pollInterval,
-              domQuietPeriod: this.settings.domQuietPeriod,
-              domMinMutations: this.settings.domMinMutations,
-              signal,
+          let completionResult;
+
+          // Check if this is a site-specific recipe
+          const signalType = this.recipe.elements.completionSignal?._signalType;
+          const isSiteSpecific = signalType === PC.Constants.SIGNAL_TYPES.SITE_SPECIFIC;
+
+          if (isSiteSpecific && PC.ResponseDetector.isSupportedSite()) {
+            // ── Use site-specific detection (Gemini, ChatGPT, Claude, etc.) ──
+            console.log(`[ChainRunner] Using site-specific detection for ${PC.ResponseDetector.getSiteName()}`);
+
+            try {
+              const responseResult = await PC.ResponseDetector.waitForResponse({
+                timeout: this.settings.maxWaitTime,
+                pollInterval: this.settings.pollInterval,
+                onProgress: (text) => {
+                  // Optional: could send progress updates
+                  console.log(`[ChainRunner] Response progress: ${PC.Utils.truncate(text, 60)}...`);
+                },
+              });
+
+              completionResult = {
+                completed: true,
+                duration: responseResult.duration,
+                method: 'siteSpecific',
+                text: responseResult.text,
+              };
+
+            } catch (err) {
+              // Site-specific detection failed — try fingerprint fallback
+              console.warn(`[ChainRunner] Site-specific detection failed: ${err.message}`);
+
+              const fallbackFingerprint = this.recipe.elements.completionSignal._responseFingerprint;
+              if (fallbackFingerprint) {
+                console.log('[ChainRunner] Trying fingerprint fallback...');
+                completionResult = await this._waitForCompletionByFingerprint(fallbackFingerprint, signal);
+              } else {
+                completionResult = {
+                  completed: false,
+                  timedOut: err.message.includes('timeout'),
+                  error: err.message,
+                };
+              }
             }
-          );
+
+          } else {
+            // ── Use fingerprint-based detection (manual recording) ──
+            completionResult = await PC.CompletionDetector.waitForCompletion(
+              this.recipe.elements.completionSignal,
+              {
+                maxWaitTime: this.settings.maxWaitTime,
+                pollInterval: this.settings.pollInterval,
+                domQuietPeriod: this.settings.domQuietPeriod,
+                domMinMutations: this.settings.domMinMutations,
+                signal,
+              }
+            );
+          }
 
           if (!completionResult.completed) {
             if (completionResult.timedOut) {
               throw new Error(`Response timeout — AI took longer than ${PC.Utils.formatDuration(this.settings.maxWaitTime)}`);
             }
             if (signal.aborted) throw new Error('Chain cancelled');
-            throw new Error('Completion detection failed');
+            throw new Error('Completion detection failed: ' + (completionResult.error || 'unknown'));
           }
 
           PC.Logger.waitComplete({
@@ -430,6 +480,68 @@
       };
     }
 
+    /**
+     * Fallback completion detection using a fingerprint.
+     * Waits for the response container to stabilize (text stops changing).
+     */
+    async _waitForCompletionByFingerprint(fingerprint, signal) {
+      const maxWait = this.settings.maxWaitTime || 120000;
+      const startTime = Date.now();
+
+      return new Promise((resolve) => {
+        let lastText = '';
+        let stableCount = 0;
+        const stabilityThreshold = 3; // 3 checks with same text
+
+        const check = () => {
+          if (signal?.aborted) {
+            resolve({ completed: false, error: 'Cancelled' });
+            return;
+          }
+
+          if (Date.now() - startTime > maxWait) {
+            resolve({
+              completed: true, // Return what we have
+              timedOut: true,
+              duration: Date.now() - startTime,
+              method: 'fingerprintFallback',
+            });
+            return;
+          }
+
+          const match = PC.SelectorEngine.find(fingerprint);
+          if (!match) {
+            // Element not found — might be still loading
+            stableCount = 0;
+            setTimeout(check, 500);
+            return;
+          }
+
+          const currentText = (match.element.textContent || '').trim();
+
+          if (currentText === lastText && currentText.length > 0) {
+            stableCount++;
+            if (stableCount >= stabilityThreshold) {
+              resolve({
+                completed: true,
+                duration: Date.now() - startTime,
+                method: 'fingerprintFallback',
+                text: currentText,
+              });
+              return;
+            }
+          } else {
+            stableCount = 0;
+            lastText = currentText;
+          }
+
+          setTimeout(check, 500);
+        };
+
+        // Start checking after a brief delay
+        setTimeout(check, 1000);
+      });
+    }
 
     // ══════════════════════════════════════════════════════════════
     //  CONTROLS: Pause / Resume / Cancel / Skip
@@ -583,15 +695,15 @@
   const runner = new ChainRunner();
 
   root.PC.ChainRunner = {
-    run(opts)   { return runner.run(opts); },
-    pause()     { runner.pause(); },
-    resume()    { runner.resume(); },
-    cancel()    { runner.cancel(); },
+    run(opts) { return runner.run(opts); },
+    pause() { runner.pause(); },
+    resume() { runner.resume(); },
+    cancel() { runner.cancel(); },
     getStatus() { return runner.getStatus(); },
 
-    get state()        { return runner.state; },
+    get state() { return runner.state; },
     get currentIndex() { return runner.currentIndex; },
-    get isRunning()    { return runner.state === STATES.RUNNING || runner.state === STATES.PAUSED; },
+    get isRunning() { return runner.state === STATES.RUNNING || runner.state === STATES.PAUSED; },
 
     /**
      * Message handlers registered by main.js

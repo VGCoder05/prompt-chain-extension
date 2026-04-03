@@ -6,11 +6,15 @@
  * The recording flow has 4 steps:
  *   Step 1: User clicks the TEXT INPUT where prompts go
  *   Step 2: User clicks the SEND BUTTON
- *   Step 3: User sends a test message, clicks the stop button
+ *   Step 3: User sends a test message, system detects completion
  *   Step 4 (optional): User clicks an EXTRA ACTION element
+ *
+ * For supported AI sites (Gemini, ChatGPT, Claude, etc.), Step 3 uses
+ * site-specific detection. For unknown sites, falls back to manual picking.
  *
  * Dependencies:
  *   - PC.SelectorEngine
+ *   - PC.ResponseDetector
  *   - PC.Storage
  *   - PC.Logger
  *   - PC.Messages
@@ -220,6 +224,13 @@
       this._banner = banner;
     }
 
+    updateBannerText(text) {
+      if (this._banner) {
+        const textEl = this._banner.querySelector('.pc-banner-text');
+        if (textEl) textEl.textContent = text;
+      }
+    }
+
     removeBanner() {
       if (this._banner) {
         this._banner.remove();
@@ -240,6 +251,16 @@
       overlay.appendChild(document.createTextNode(text));
       document.body.appendChild(overlay);
       this._waitingOverlay = overlay;
+    }
+
+    updateWaitingText(text) {
+      if (this._waitingOverlay) {
+        // Remove old text nodes, keep spinner
+        const spinner = this._waitingOverlay.querySelector('.pc-waiting-spinner');
+        this._waitingOverlay.textContent = '';
+        if (spinner) this._waitingOverlay.appendChild(spinner);
+        this._waitingOverlay.appendChild(document.createTextNode(text));
+      }
     }
 
     removeWaiting() {
@@ -267,6 +288,7 @@
       this._active = false;
       this._cancelled = false;
       this._recipe = null;
+      this._siteConfig = null;
     }
 
     get isActive() {
@@ -281,6 +303,15 @@
 
       this._active = true;
       this._cancelled = false;
+
+      // Initialize ResponseDetector for site-specific features
+      this._siteConfig = null;
+      
+      if (this._siteConfig) {
+        console.log(`[Recorder] Site detected: ${this._siteConfig.name}`);
+      } else {
+        console.log('[Recorder] Unknown site — using manual detection');
+      }
 
       const pageInfo = PC.Content ? PC.Content.getPageInfo() : {
         hostname: window.location.hostname,
@@ -299,16 +330,24 @@
           extraAction: null,
         },
         settings: { ...PC.Constants.DEFAULT_SETTINGS },
+        // Store site info for chain execution
+        siteInfo: {
+          siteName: this._siteConfig?.name || null,
+          isKnownSite: !!this._siteConfig,
+          detectionMethod: this._siteConfig ? 'siteConfig' : 'manual',
+        },
       };
 
       PC.Logger.recordStart({
         domain: pageInfo.hostname,
         url: pageInfo.url,
+        siteName: this._siteConfig?.name,
       });
 
       PC.Messages.send(MSG.RECORDING_STEP, {
         step: 'started',
         domain: pageInfo.hostname,
+        siteName: this._siteConfig?.name,
       });
 
       try {
@@ -371,13 +410,38 @@
     // ── Step 1: Record Target Input ─────────────────────────────
 
     async _step1_targetInput() {
-      this._overlay.showBanner({
-        stepLabel: '1/4',
-        text: '📝 Click on the TEXT INPUT AREA where you type prompts',
-        totalSteps: 4,
-        currentStep: 0,
-        onCancel: () => this.cancel(),
-      });
+      // For supported sites, try auto-detection first
+      if (this._siteConfig) {
+        const autoInput = PC.ResponseDetector.findElement('input');
+        if (autoInput) {
+          this._overlay.showBanner({
+            stepLabel: '1/4',
+            text: `✅ Auto-detected input for ${this._siteConfig.name}. Click it to confirm, or click a different element.`,
+            totalSteps: 4,
+            currentStep: 0,
+            onCancel: () => this.cancel(),
+          });
+
+          // Highlight the auto-detected element
+          autoInput.classList.add('pc-highlight-element');
+        } else {
+          this._overlay.showBanner({
+            stepLabel: '1/4',
+            text: '📝 Click on the TEXT INPUT AREA where you type prompts',
+            totalSteps: 4,
+            currentStep: 0,
+            onCancel: () => this.cancel(),
+          });
+        }
+      } else {
+        this._overlay.showBanner({
+          stepLabel: '1/4',
+          text: '📝 Click on the TEXT INPUT AREA where you type prompts',
+          totalSteps: 4,
+          currentStep: 0,
+          onCancel: () => this.cancel(),
+        });
+      }
 
       const element = await this._picker.start();
 
@@ -417,13 +481,37 @@
     // ── Step 2: Record Send Trigger ─────────────────────────────
 
     async _step2_sendTrigger() {
-      this._overlay.showBanner({
-        stepLabel: '2/4',
-        text: '📨 Click on the SEND BUTTON that submits your message',
-        totalSteps: 4,
-        currentStep: 1,
-        onCancel: () => this.cancel(),
-      });
+      // For supported sites, try auto-detection
+      if (this._siteConfig) {
+        const autoSubmit = PC.ResponseDetector.findElement('submit');
+        if (autoSubmit) {
+          this._overlay.showBanner({
+            stepLabel: '2/4',
+            text: `✅ Auto-detected send button. Click it to confirm, or click a different element.`,
+            totalSteps: 4,
+            currentStep: 1,
+            onCancel: () => this.cancel(),
+          });
+
+          autoSubmit.classList.add('pc-highlight-element');
+        } else {
+          this._overlay.showBanner({
+            stepLabel: '2/4',
+            text: '📨 Click on the SEND BUTTON that submits your message',
+            totalSteps: 4,
+            currentStep: 1,
+            onCancel: () => this.cancel(),
+          });
+        }
+      } else {
+        this._overlay.showBanner({
+          stepLabel: '2/4',
+          text: '📨 Click on the SEND BUTTON that submits your message',
+          totalSteps: 4,
+          currentStep: 1,
+          onCancel: () => this.cancel(),
+        });
+      }
 
       const element = await this._picker.start();
 
@@ -450,10 +538,117 @@
     // ── Step 3: Record Completion Signal ─────────────────────────
 
     async _step3_completionSignal() {
+      // For SUPPORTED SITES: use automatic detection
+      if (this._siteConfig) {
+        await this._step3_automatic();
+      } else {
+        // For UNKNOWN SITES: fall back to manual stop button detection
+        await this._step3_manual();
+      }
+    }
+
+    /**
+     * Step 3 for supported sites (Gemini, ChatGPT, Claude, etc.)
+     * Uses ResponseDetector for automatic completion detection.
+     */
+    async _step3_automatic() {
+      const siteName = this._siteConfig.name;
+
+      this._overlay.showBanner({
+        stepLabel: '3/4',
+        text: `⏳ ${siteName} detected! Send a SHORT test message to verify detection...`,
+        totalSteps: 4,
+        currentStep: 2,
+        onCancel: () => this.cancel(),
+      });
+
+      this._overlay.showWaiting(`Waiting for you to send a test message on ${siteName}...`);
+
+      // Wait for user to send a message (DOM activity)
+      await this._waitForDOMActivity(5);
+      this._checkCancelled();
+
+      // Now wait for AI to start streaming
+      this._overlay.updateWaitingText('Detecting AI response...');
+
+      // Wait a moment for streaming to start
+      await PC.Utils.sleep(1000);
+
+      // Check if we can detect streaming
+      const isStreaming = PC.ResponseDetector.isStreaming();
+      console.log(`[Recorder] Streaming detected: ${isStreaming}`);
+
+      if (isStreaming) {
+        this._overlay.updateBannerText(`🔄 ${siteName} is generating a response... waiting for completion`);
+      }
+
+      // Wait for response to complete using site-specific detection
+      this._overlay.updateWaitingText('Waiting for AI response to complete...');
+
+      try {
+        const result = await PC.ResponseDetector.waitForResponse({
+          timeout: 120000,
+          pollInterval: 500,
+          onProgress: (text) => {
+            const preview = PC.Utils.truncate(text, 50);
+            this._overlay.updateWaitingText(`Response: "${preview}..."`);
+          },
+        });
+
+        console.log(`[Recorder] Response completed in ${result.duration}ms`);
+
+        // Store a special completion signal that indicates site-specific detection
+        this._recipe.elements.completionSignal = {
+          _signalType: PC.Constants.SIGNAL_TYPES.SITE_SPECIFIC,
+          _siteName: siteName,
+          _detectionMethod: 'responseDetector',
+          // Also store a fingerprint of the response container as fallback
+          _responseFingerprint: result.element ? PC.SelectorEngine.fingerprint(result.element) : null,
+          meta: {
+            tagName: result.element?.tagName?.toLowerCase() || 'unknown',
+            recordedAt: PC.Utils.timestamp(),
+            recordedOnURL: window.location.hostname,
+          },
+        };
+
+        this._overlay.removeWaiting();
+
+        PC.Logger.recordStep({
+          step: STEPS.COMPLETION_SIGNAL,
+          method: 'siteSpecific',
+          siteName,
+          duration: result.duration,
+        });
+
+        PC.Messages.send(MSG.RECORDING_STEP, {
+          step: STEPS.COMPLETION_SIGNAL,
+          completed: true,
+          method: 'siteSpecific',
+        });
+
+        console.log(`[Recorder] ✅ Step 3 complete — using ${siteName} auto-detection`);
+
+        // Brief pause before step 4
+        await PC.Utils.sleep(1000);
+
+      } catch (err) {
+        console.warn(`[Recorder] Site-specific detection failed: ${err.message}`);
+        console.log('[Recorder] Falling back to manual detection...');
+
+        // Fall back to manual
+        this._overlay.removeWaiting();
+        await this._step3_manual();
+      }
+    }
+
+    /**
+     * Step 3 for unknown sites — manual stop button detection.
+     */
+    async _step3_manual() {
       // Phase A: Tell user to send a test message
       this._overlay.showBanner({
         stepLabel: '3/4',
-        text: '⏳ Type a SHORT test message and SEND IT manually. Wait for the stop/cancel button to appear...',
+        text: '⏳ Type a SHORT test message and SEND IT manually. Wait for a Stop/Cancel button to appear...',
         totalSteps: 4,
         currentStep: 2,
         onCancel: () => this.cancel(),
@@ -580,6 +775,7 @@
           name: recipe.name,
           elements: recipe.elements,
           settings: recipe.settings,
+          siteInfo: recipe.siteInfo,
           lastHealthCheck: PC.Utils.timestamp(),
           healthStatus: 'healthy',
         });
@@ -591,6 +787,7 @@
           domain: recipe.domain,
           elements: recipe.elements,
           settings: recipe.settings,
+          siteInfo: recipe.siteInfo,
           lastHealthCheck: PC.Utils.timestamp(),
           healthStatus: 'healthy',
         });
@@ -667,6 +864,7 @@
       this._active = false;
       this._overlay.removeAll();
       this._recipe = null;
+      this._siteConfig = null;
 
       document.querySelectorAll('.pc-highlight-element').forEach((el) => {
         el.classList.remove('pc-highlight-element');
@@ -699,9 +897,6 @@
 
     /**
      * Message handlers to be registered by main.js.
-     * Each module exposes its handlers here instead of
-     * calling PC.Content.registerHandlers() directly,
-     * because main.js loads AFTER this module.
      */
     _messageHandlers: {
       [MSG.START_RECORDING]: async (message) => {

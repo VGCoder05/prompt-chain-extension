@@ -35,11 +35,12 @@
         "lib/storage.js",
         "lib/logger.js",
         "content/selectorEngine.js",
-        "content/recorder.js",
+        "content/responseDetector.js",
         "content/replayer.js",
         "content/completionDetector.js",
         "content/healthChecker.js",
         "content/extraAction.js",
+        "content/recorder.js",
         "content/chainRunner.js",
         "content/main.js"
       ],
