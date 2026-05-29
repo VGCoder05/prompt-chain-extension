@@ -596,6 +596,6 @@
     },
   };
 
-  console.log('[PC CompletionDetector] ✅ Module loaded');
+  // console.log('[PC CompletionDetector] ✅ Module loaded');
 
 })();
