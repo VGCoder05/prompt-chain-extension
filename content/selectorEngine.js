@@ -89,8 +89,8 @@
 
         const siblings = current.parentElement
           ? [...current.parentElement.children].filter(
-              (s) => s.tagName === current.tagName
-            )
+            (s) => s.tagName === current.tagName
+          )
           : [];
 
         if (siblings.length > 1) {
@@ -109,19 +109,19 @@
 
     getAttributes(element) {
       return {
-        id:               element.id || null,
-        classes:          [...element.classList],
-        tagName:          element.tagName.toLowerCase(),
-        type:             element.getAttribute('type'),
-        role:             element.getAttribute('role'),
-        ariaLabel:        element.getAttribute('aria-label'),
-        ariaDescription:  element.getAttribute('aria-description'),
-        placeholder:      element.getAttribute('placeholder'),
-        contentEditable:  element.getAttribute('contenteditable'),
-        name:             element.getAttribute('name'),
-        title:            element.getAttribute('title'),
-        dataAttributes:   this._getDataAttributes(element),
-        disabled:         element.disabled || false,
+        id: element.id || null,
+        classes: [...element.classList],
+        tagName: element.tagName.toLowerCase(),
+        type: element.getAttribute('type'),
+        role: element.getAttribute('role'),
+        ariaLabel: element.getAttribute('aria-label'),
+        ariaDescription: element.getAttribute('aria-description'),
+        placeholder: element.getAttribute('placeholder'),
+        contentEditable: element.getAttribute('contenteditable'),
+        name: element.getAttribute('name'),
+        title: element.getAttribute('title'),
+        dataAttributes: this._getDataAttributes(element),
+        disabled: element.disabled || false,
       };
     },
 
@@ -152,9 +152,9 @@
 
     getTextClues(element) {
       return {
-        textContent:  PC.Utils.truncate((element.textContent || '').trim(), 80),
-        innerText:    PC.Utils.truncate((element.innerText || '').trim(), 80),
-        value:        element.value ? PC.Utils.truncate(element.value, 80) : null,
+        textContent: PC.Utils.truncate((element.textContent || '').trim(), 80),
+        innerText: PC.Utils.truncate((element.innerText || '').trim(), 80),
+        value: element.value ? PC.Utils.truncate(element.value, 80) : null,
       };
     },
 
@@ -173,16 +173,16 @@
       }
 
       return {
-        parentTagName:    parent ? parent.tagName.toLowerCase() : null,
-        parentId:         parent?.id || null,
-        parentClasses:    parent ? [...parent.classList].slice(0, 5) : [],
+        parentTagName: parent ? parent.tagName.toLowerCase() : null,
+        parentId: parent?.id || null,
+        parentClasses: parent ? [...parent.classList].slice(0, 5) : [],
         siblingIndex,
         sameSiblingIndex,
-        totalSiblings:    parent ? parent.children.length : 0,
+        totalSiblings: parent ? parent.children.length : 0,
         totalSameSiblings: parent
           ? [...parent.children].filter((c) => c.tagName === element.tagName).length
           : 0,
-        depth:            this._getDepth(element),
+        depth: this._getDepth(element),
       };
     },
 
@@ -209,8 +209,8 @@
         const attrName = element.hasAttribute('data-testid')
           ? 'data-testid'
           : element.hasAttribute('data-test')
-          ? 'data-test'
-          : 'data-cy';
+            ? 'data-test'
+            : 'data-cy';
         const candidate = `${tag}[${attrName}="${CSS.escape(testId)}"]`;
         if (this._isUnique(candidate)) return candidate;
       }
@@ -1152,6 +1152,38 @@
 
       return true;
     },
+
+    /**
+     * Wait for an element matching the fingerprint to become stable
+     * (exists, visible, and not disabled).
+     * Used by replayer before executing actions.
+     */
+    async waitForStableElement(fingerprint, timeout = 10000) {
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < timeout) {
+        const match = this.find(fingerprint);
+
+        if (match && match.confidence >= PC.Constants.CONFIDENCE.MINIMUM) {
+          const el = match.element;
+
+          // Check if element is stable (visible and enabled)
+          const isVisible = this._isVisible(el);
+          const isEnabled = !el.disabled &&
+            el.getAttribute('aria-disabled') !== 'true';
+          const style = window.getComputedStyle(el);
+          const isInteractable = style.pointerEvents !== 'none';
+
+          if (isVisible && isEnabled && isInteractable) {
+            return match; // ✅ Element is ready
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      return null; // ❌ Timeout
+    }
   };
 
 
@@ -1173,6 +1205,10 @@
       return ElementReFinder.findWithWait(fingerprint, timeout);
     },
 
+    waitForStableElement(fingerprint, timeout) {
+      return ElementReFinder.waitForStableElement(fingerprint, timeout);
+    },
+    
     checkHealth(fingerprint) {
       const match = ElementReFinder.find(fingerprint);
       const CONF = PC.Constants.CONFIDENCE;
@@ -1213,7 +1249,7 @@
       const stopButton = document.querySelector('button.send-button.stop');
 
       const isStopVisible = (stopIcon && this._isElementVisible(stopIcon)) ||
-                           (stopButton && this._isElementVisible(stopButton));
+        (stopButton && this._isElementVisible(stopButton));
 
       return isStopVisible;
     },
@@ -1229,7 +1265,7 @@
 
       const isMicVisible = micIcon && this._isElementVisible(micIcon);
       const isStopVisible = (stopIcon && this._isElementVisible(stopIcon)) ||
-                           (stopButton && this._isElementVisible(stopButton));
+        (stopButton && this._isElementVisible(stopButton));
 
       return isMicVisible || !isStopVisible;
     },

@@ -727,3 +727,51 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--ink3);
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   17. v2 CSS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Variables Section */
+.variables-section {
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  background: var(--surface-2);
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+}
+
+.variables-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+  margin-bottom: 0.5rem;
+}
+
+.variables-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.variable-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.variable-name {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.variable-value {
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+} 

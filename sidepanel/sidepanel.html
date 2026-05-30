@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark" data-color="teal">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Prompt Chain — Monitor</title>
   <link rel="stylesheet" href="sidepanel.css" />
 </head>
+
 <body>
 
   <div class="panel">
@@ -14,7 +16,7 @@
     <header class="panel-header">
       <div class="panel-header-left">
         <span class="panel-logo">🔗</span>
-        <h1 class="panel-title">Chain Monitor</h1>
+        <h1 class="panel-title">Workflow Monitor</h1>
       </div>
       <div class="panel-header-right">
         <button id="btnToggleTheme" class="panel-icon-btn" title="Toggle Light/Dark">🌙</button>
@@ -27,8 +29,8 @@
     <div class="panel-section" id="idleState">
       <div class="idle-content">
         <div class="idle-icon">⏳</div>
-        <p class="idle-title">No active chain</p>
-        <p class="idle-hint">Start a chain from the popup or dashboard to see live progress here.</p>
+        <p class="idle-title">No active workflow</p>
+        <p class="idle-hint">Start a workflow from the popup or dashboard to see live progress here.</p>
       </div>
     </div>
 
@@ -40,6 +42,13 @@
         <div class="chain-name" id="chainName">Chain Name</div>
         <div class="chain-meta" id="chainMeta">0 prompts · domain.com</div>
       </div>
+
+      <div class="variables-section" id="variablesSection" style="display:none;">
+  <div class="variables-header">Variables</div>
+  <div class="variables-list" id="variablesList">
+    <!-- Populated by JS -->
+  </div>
+</div>
 
       <!-- Controls -->
       <div class="controls" id="controls">
@@ -72,7 +81,7 @@
 
       <div class="result-banner" id="resultBanner">
         <span class="result-icon" id="resultIcon">✅</span>
-        <span class="result-text" id="resultText">Chain Complete!</span>
+        <span class="result-text" id="resultText">Workflow Complete!</span>
       </div>
 
       <div class="result-stats" id="resultStats">
@@ -116,4 +125,5 @@
   <script src="../lib/logger.js"></script>
   <script src="sidepanel.js"></script>
 </body>
+
 </html>

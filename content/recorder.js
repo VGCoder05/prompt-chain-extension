@@ -311,6 +311,7 @@
       this._recipe = {
         name: recipeName || `Recipe for ${pageInfo.hostname}`,
         domain: pageInfo.hostname,
+        steps: [], //  Array of JSON action steps
         elements: {
           targetInput: null,       // Step 1: Where to type
           sendTrigger: null,       // Step 2: How to send
@@ -400,8 +401,9 @@
 
     async _step1_targetInput() {
       this._overlay.showBanner({
+
         stepLabel: '1/5',
-        text: '📝 Click on the TEXT INPUT AREA where you type prompts',
+        text: "📝 Click the input, then TYPE A TEST MESSAGE (we'll capture it)",
         totalSteps: 5,
         currentStep: 0,
         onCancel: () => this.cancel(),
@@ -422,6 +424,18 @@
       fingerprint._inputType = isEditable ? 'contenteditable' :
         tag === 'textarea' ? 'textarea' :
           tag === 'input' ? 'input' : 'unknown';
+
+      // Wait for user to type something
+      const testValue = await this._captureUserInput(element);
+
+      // Record as JSON action step
+      this._recipe.steps.push({
+        action: 'type',
+        selector: fingerprint,
+        value: testValue,
+        variableName: 'USER_PROMPT', //  Replaceable variable
+        description: 'Type prompt into input field'
+      });
 
       this._recipe.elements.targetInput = fingerprint;
 
@@ -457,6 +471,13 @@
 
       const fingerprint = PC.SelectorEngine.fingerprint(element);
       fingerprint._triggerType = 'click';
+
+      //  Record as click action
+      this._recipe.steps.push({
+        action: 'click',
+        selector: fingerprint,
+        description: 'Click send button'
+      });
 
       this._recipe.elements.sendTrigger = fingerprint;
 
@@ -547,6 +568,14 @@
         fingerprint._indicatorType = 'streaming';
         fingerprint._signalType = PC.Constants.SIGNAL_TYPES.ELEMENT_DISAPPEARS;
 
+        // Record as wait condition
+        this._recipe.steps.push({
+          action: 'waitForDisappear',
+          selector: fingerprint,
+          timeout: 180000,
+          description: 'Wait for stop button to disappear (AI generating)'
+        });
+
         this._recipe.elements.streamingIndicator = fingerprint;
 
         PC.Logger.recordStep({
@@ -558,68 +587,68 @@
         console.log('[Recorder] ✅ Step 3 complete — recorded stop button');
 
         // ─── Phase C: Wait for the stop button to disappear ───
-         await this._step3_waitForResponseEnd(fingerprint);
+        await this._step3_waitForResponseEnd(fingerprint);
 
-  } catch (err) {
-    if (this._cancelled) {
-      throw new Error('Recording cancelled');
-    }
-    // Picker cancelled = user clicked "Skip"
-    console.log('[Recorder] Step 3 skipped — no streaming indicator');
-    PC.Logger.recordStep({ step: 'STREAMING_INDICATOR', skipped: true });
-  }
-
-  await PC.Utils.sleep(500);
-}
-
-/**
- * Phase C: Races auto-detection (element disappears) against
- * a manual "Response Finished" button. Whichever fires first wins.
- */
-_step3_waitForResponseEnd(fingerprint) {
-  return new Promise((resolve) => {
-    let settled = false;
-
-    const settle = (method) => {
-      if (settled) return;
-      settled = true;
-      console.log(`[Recorder] AI response ended (detected via: ${method})`);
-      resolve();
-    };
-
-    // ── Show banner with manual override button ──
-    this._overlay.showBanner({
-      stepLabel: '3/5',
-      text: '⏳ Waiting for AI to finish responding…',
-      totalSteps: 5,
-      currentStep: 2,
-      showDone: true,
-      doneLabel: '✔ Response Finished',
-      onDone: () => settle('manual'),
-      onCancel: () => {
-        if (!settled) {
-          settled = true;
-          this.cancel();
-          resolve();
+      } catch (err) {
+        if (this._cancelled) {
+          throw new Error('Recording cancelled');
         }
-      },
-    });
-
-    // ── Auto-detection runs in parallel ──
-    this._waitForElementToDisappear(fingerprint, 180000).then((disappeared) => {
-      if (disappeared) {
-        settle('auto-detect');
-      } else {
-        // Timed out — update banner to nudge the user
-        if (!settled) {
-          this._overlay.updateBannerText(
-            '⚠️ Could not detect response end automatically. Click "Response Finished" when ready.'
-          );
-        }
+        // Picker cancelled = user clicked "Skip"
+        console.log('[Recorder] Step 3 skipped — no streaming indicator');
+        PC.Logger.recordStep({ step: 'STREAMING_INDICATOR', skipped: true });
       }
-    });
-  });
-}
+
+      await PC.Utils.sleep(500);
+    }
+
+    /**
+     * Phase C: Races auto-detection (element disappears) against
+     * a manual "Response Finished" button. Whichever fires first wins.
+     */
+    _step3_waitForResponseEnd(fingerprint) {
+      return new Promise((resolve) => {
+        let settled = false;
+
+        const settle = (method) => {
+          if (settled) return;
+          settled = true;
+          console.log(`[Recorder] AI response ended (detected via: ${method})`);
+          resolve();
+        };
+
+        // ── Show banner with manual override button ──
+        this._overlay.showBanner({
+          stepLabel: '3/5',
+          text: '⏳ Waiting for AI to finish responding…',
+          totalSteps: 5,
+          currentStep: 2,
+          showDone: true,
+          doneLabel: '✔ Response Finished',
+          onDone: () => settle('manual'),
+          onCancel: () => {
+            if (!settled) {
+              settled = true;
+              this.cancel();
+              resolve();
+            }
+          },
+        });
+
+        // ── Auto-detection runs in parallel ──
+        this._waitForElementToDisappear(fingerprint, 180000).then((disappeared) => {
+          if (disappeared) {
+            settle('auto-detect');
+          } else {
+            // Timed out — update banner to nudge the user
+            if (!settled) {
+              this._overlay.updateBannerText(
+                '⚠️ Could not detect response end automatically. Click "Response Finished" when ready.'
+              );
+            }
+          }
+        });
+      });
+    }
 
     // ══════════════════════════════════════════════════════════════
     //  STEP 4: COMPLETION INDICATOR (Required)
@@ -660,6 +689,14 @@ _step3_waitForResponseEnd(fingerprint) {
         hadText: (element.textContent || '').trim().slice(0, 50),
         tagName: element.tagName.toLowerCase(),
       };
+
+      //  Record as wait condition
+      this._recipe.steps.push({
+        action: 'waitForAppear',
+        selector: fingerprint,
+        timeout: 180000,
+        description: 'Wait for completion indicator (AI finished)'
+      });
 
       this._recipe.elements.completionIndicator = fingerprint;
 
@@ -713,6 +750,13 @@ _step3_waitForResponseEnd(fingerprint) {
           const fingerprint = PC.SelectorEngine.fingerprint(element);
           fingerprint._actionType = this._guessExtraActionType(element);
 
+          // Record as click action
+          this._recipe.steps.push({
+            action: 'click',
+            selector: fingerprint,
+            description: 'Click extra action button'
+          });
+
           this._recipe.elements.extraAction = fingerprint;
 
           PC.Logger.recordStep({
@@ -742,6 +786,61 @@ _step3_waitForResponseEnd(fingerprint) {
       });
     }
 
+    /**
+ * Wait for user to type something, then capture the text.
+ * Shows real-time preview of what will be recorded.
+ */
+    _captureUserInput(element) {
+      return new Promise((resolve) => {
+        let currentValue = '';
+
+        // Update banner with live preview
+        const updatePreview = () => {
+          const text = this._getElementValue(element);
+          if (text !== currentValue) {
+            currentValue = text;
+            this._overlay.updateBannerText(
+              `📝 Captured: "${PC.Utils.truncate(text, 50)}" — Click "Done" when ready`
+            );
+          }
+        };
+
+        // Poll for changes
+        const interval = setInterval(updatePreview, 500);
+
+        // Show "Done" button
+        this._overlay.showBanner({
+          stepLabel: '1/5',
+          text: '📝 Type your test message...',
+          totalSteps: 5,
+          currentStep: 0,
+          showDone: true,
+          doneLabel: '✔ Capture This Text',
+          onDone: () => {
+            clearInterval(interval);
+            resolve(currentValue || '[empty]');
+          },
+          onCancel: () => {
+            clearInterval(interval);
+            this.cancel();
+          }
+        });
+      });
+    }
+
+    /**
+     * Extract text from any input type
+     */
+    _getElementValue(element) {
+      if (element.value !== undefined) {
+        return element.value; // <input>, <textarea>
+      }
+      if (element.getAttribute('contenteditable') === 'true') {
+        return element.textContent || element.innerText; // Rich text editors
+      }
+      return '';
+    }
+
 
     // ══════════════════════════════════════════════════════════════
     //  SAVE RECIPE
@@ -749,6 +848,18 @@ _step3_waitForResponseEnd(fingerprint) {
 
     async _saveRecipe() {
       const recipe = this._recipe;
+
+      // Add metadata to each step
+      recipe.steps.forEach((step, index) => {
+        step.id = `step_${index + 1}`;
+        step.recordedAt = PC.Utils.timestamp();
+      });
+
+      // Validate that we have at least type + click + wait
+      if (recipe.steps.length < 3) {
+        throw new Error('Incomplete recording: need at least type, click, and wait steps');
+      }
+
       const existing = await PC.Storage.recipes.getByDomain(recipe.domain);
 
       // For backwards compatibility, also set completionSignal
@@ -758,7 +869,8 @@ _step3_waitForResponseEnd(fingerprint) {
       if (existing) {
         const updated = await PC.Storage.recipes.update(existing.id, {
           name: recipe.name,
-          elements: recipe.elements,
+          steps: recipe.steps, //  Save JSON steps
+          elements: recipe.elements, // Kept for compatibility
           settings: recipe.settings,
           lastHealthCheck: PC.Utils.timestamp(),
           healthStatus: 'healthy',
@@ -769,6 +881,7 @@ _step3_waitForResponseEnd(fingerprint) {
         const saved = await PC.Storage.recipes.add({
           name: recipe.name,
           domain: recipe.domain,
+          steps: recipe.steps,
           elements: recipe.elements,
           settings: recipe.settings,
           lastHealthCheck: PC.Utils.timestamp(),

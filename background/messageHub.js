@@ -83,14 +83,16 @@
         // ── Status updates FROM content script → background + UI ──
 
         case MSG.CHAIN_STARTED:
-        case MSG.CHAIN_COMPLETED:
         case MSG.CHAIN_FAILED:
         case MSG.CHAIN_PAUSED:
         case MSG.CHAIN_RESUMED:
         case MSG.CHAIN_CANCELLED:
+        case MSG.STEP_COMPLETED:
+          return (msg, snd) => this._handleStepCompleted(msg, snd);
+        case MSG.STEP_FAILED:
+          return (msg, snd) => this._handleStepFailed(msg, snd);
         case MSG.STEP_STARTED:
         case MSG.STEP_COMPLETED:
-        case MSG.STEP_FAILED:
         case MSG.STEP_RETRYING:
         case MSG.STEP_SKIPPED:
         case MSG.RESPONSE_TIMEOUT:
@@ -190,9 +192,8 @@
     // ══════════════════════════════════════════════════════════════
     //  CHAIN COMMANDS
     // ══════════════════════════════════════════════════════════════
-
     /**
-     * Handle RUN_CHAIN: find the active tab, save state, forward.
+     * Handle RUN_CHAIN/RUN_WORKFLOW: initialize state and send first step.
      */
     async _handleRunChain(message, sendResponse) {
       try {
@@ -204,23 +205,115 @@
 
         _activeTabId = tab.id;
 
-        // Save initial chain state
+        // Validate workflow has steps
+        if (!message.workflow || !message.workflow.steps || message.workflow.steps.length === 0) {
+          sendResponse({ error: 'Workflow has no steps' });
+          return;
+        }
+
+        // Interpolate variables in all steps
+        const interpolatedSteps = message.workflow.steps.map((step) =>
+          PC.ChainStateManager.interpolateStep(step, message.variables || {})
+        );
+
+        // Save initial workflow state
         await PC.ChainStateManager.save({
           tabId: tab.id,
           tabUrl: tab.url,
-          chainId: message.chainId,
-          recipeId: message.recipeId,
+          workflowId: message.workflow.id,
+          workflowName: message.workflow.name,
+          steps: interpolatedSteps,
+          currentStepIndex: 0,
+          variables: message.variables || {},
           status: 'starting',
-          currentStep: 0,
           startedAt: new Date().toISOString(),
         });
 
-        // Forward to content script
-        const response = await chrome.tabs.sendMessage(tab.id, message);
+        console.log(
+          `[MessageHub] 🚀 Starting workflow: ${message.workflow.name} ` +
+          `(${interpolatedSteps.length} steps)`
+        );
+
+        // Send first step to content script
+        const firstStep = interpolatedSteps[0];
+        const response = await chrome.tabs.sendMessage(tab.id, {
+          type: MSG.EXECUTE_STEP,
+          step: firstStep,
+          stepIndex: 0,
+          totalSteps: interpolatedSteps.length,
+        });
+
         sendResponse(response);
       } catch (err) {
+        console.error('[MessageHub] Failed to start workflow:', err);
         sendResponse({ error: err.message });
       }
+    },
+
+    /**
+     * Handle STEP_COMPLETED from content script.
+     * Sends the next step or completes the workflow.
+     * Handle workflow completion.
+     */
+    async _handleWorkflowComplete(state) {
+      const duration = Date.now() - new Date(state.startedAt).getTime();
+
+      console.log(
+        `[MessageHub] 🎉 Workflow complete: ${state.workflowName} ` +
+        `(${state.steps.length} steps, ${PC.Utils.formatDuration(duration)})`
+      );
+
+      // Show notification
+      this._showNotification(
+        '🎉 Workflow Complete!',
+        `"${state.workflowName}" finished in ${PC.Utils.formatDuration(duration)}`
+      );
+
+      // Broadcast to UI
+      this._broadcastToExtensionUIs({
+        type: MSG.WORKFLOW_COMPLETED,
+        workflowId: state.workflowId,
+        workflowName: state.workflowName,
+        totalSteps: state.steps.length,
+        duration,
+      });
+
+      // Clear state
+      _activeTabId = null;
+      await PC.ChainStateManager.clear();
+    },
+
+    /**
+     * Handle workflow failure.
+     */
+    async _handleWorkflowFailed(error) {
+      const state = await PC.ChainStateManager.get();
+
+      console.error(
+        `[MessageHub] ❌ Workflow failed: ${state?.workflowName || 'unknown'} ` +
+        `at step ${(state?.currentStepIndex || 0) + 1}/${state?.steps.length || '?'} ` +
+        `— ${error}`
+      );
+
+      // Show notification
+      this._showNotification(
+        '❌ Workflow Failed',
+        `Error at step ${(state?.currentStepIndex || 0) + 1}: ${error}`
+      );
+
+      // Broadcast to UI
+      this._broadcastToExtensionUIs({
+        type: MSG.WORKFLOW_FAILED,
+        workflowId: state?.workflowId,
+        workflowName: state?.workflowName,
+        error,
+        failedAtStep: (state?.currentStepIndex || 0) + 1,
+        totalSteps: state?.steps.length || 0,
+      });
+
+      // Clear state
+      _activeTabId = null;
+      await PC.ChainStateManager.clear();
     },
 
 
@@ -284,6 +377,20 @@
      */
     _handleRecordingStatus(message, sender) {
       this._broadcastToExtensionUIs(message);
+    },
+
+    /**
+ * Handle STEP_FAILED from content script.
+ */
+    async _handleStepFailed(message, sender) {
+      const state = await PC.ChainStateManager.get();
+
+      console.error(
+        `[MessageHub] ❌ Step failed: ${state?.steps[state.currentStepIndex]?.action || 'unknown'} ` +
+        `— ${message.error}`
+      );
+
+      await this._handleWorkflowFailed(message.error);
     },
 
 

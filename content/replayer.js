@@ -1,20 +1,21 @@
 /**
- * content/replayer.js  — V3
+ * content/replayer.js  — V4 (Macro Replay Edition)
  * ────────────────────────────────────────────
- * Handles the two core replay actions:
- *   1. TEXT INJECTION — Insert text into the recorded input element
- *   2. CLICK SEND — Click the recorded send button
+ * Executes individual steps from JSON-based workflows/macros.
  *
- * Uses PC.SelectorEngine to re-find elements from stored fingerprints.
- * Does NOT manage the chain loop (that's chainRunner.js in Phase 5).
- * This module provides the atomic building blocks for each step.
+ * Supported Actions:
+ *   1. type — Inject text into input fields
+ *   2. click — Click buttons/elements
+ *   3. waitForAppear — Wait for element to become visible
+ *   4. waitForDisappear — Wait for element to hide/remove
  *
- * V3 Changes:
- *   - Element detection from V2 (Quill, ProseMirror, icon-to-button walk-up)
- *   - Reliable wait/verify/retry semantics from V1
- *   - Fixed getInputText walk-up + inputType re-detection
- *   - Normalised whitespace comparison in verify
- *   - Robust clickSend with dispatchEvent fallback
+ * Main Entry Point:
+ *   - executeStep(step, opts) — Runs a single JSON step
+ *
+ * Legacy API (still supported):
+ *   - injectText(fingerprint, text, opts)
+ *   - clickSend(sendFingerprint, inputFingerprint, opts)
+ *   - injectAndVerify(fingerprint, text, opts)
  *
  * Dependencies:
  *   - PC.SelectorEngine (content/selectorEngine.js)
@@ -22,6 +23,7 @@
  *   - PC.Utils (lib/utils.js)
  *   - PC.Logger (lib/logger.js)
  */
+
 (() => {
   const root = typeof globalThis !== 'undefined' ? globalThis : self;
   root.PC = root.PC || {};
@@ -202,6 +204,321 @@
       // Button not found → Enter key fallback
       console.warn('[Replayer] Send button not found — trying Enter key fallback');
       return this._enterKeyFallback(inputFingerprint);
+    },
+
+    /**
+ * Wait for an element to appear on the page.
+ * Used for completion indicators (buttons that show when AI finishes).
+ *
+ * @param {object} fingerprint - Element fingerprint to wait for
+ * @param {object} [opts]
+ * @param {number} [opts.timeout] - Max wait time (ms)
+ * @param {function} [opts.onProgress] - Callback(elapsed, status)
+ * @returns {Promise<object>} { success, confidence, method, elapsed }
+ */
+    async waitForAppear(fingerprint, opts = {}) {
+      const timeout = opts.timeout || 180000; // 3 min default
+      const onProgress = opts.onProgress || (() => { });
+      const startTime = Date.now();
+
+      console.log(`[Replayer] ⏳ Waiting for element to APPEAR (timeout: ${timeout}ms)`);
+
+      return new Promise((resolve) => {
+        // Progress reporting interval
+        const progressInterval = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          onProgress(elapsed, 'waiting');
+        }, 1000);
+
+        // Polling function
+        const check = async () => {
+          const elapsed = Date.now() - startTime;
+
+          // Check if element exists and is visible
+          const match = await PC.SelectorEngine.findWithWait(fingerprint, 1000);
+
+          if (match && match.confidence >= PC.Constants.CONFIDENCE.MINIMUM) {
+            clearInterval(progressInterval);
+            console.log(
+              `[Replayer] ✅ Element appeared after ${elapsed}ms ` +
+              `(confidence: ${match.confidence.toFixed(2)}, method: ${match.method})`
+            );
+            resolve({
+              success: true,
+              confidence: match.confidence,
+              method: match.method,
+              elapsed,
+            });
+            return;
+          }
+
+          // Timeout check
+          if (elapsed > timeout) {
+            clearInterval(progressInterval);
+            console.warn(`[Replayer] ❌ Element did not appear within ${timeout}ms`);
+            resolve({
+              success: false,
+              error: 'Element did not appear within timeout',
+              elapsed,
+            });
+            return;
+          }
+
+          // Continue polling
+          setTimeout(check, 500);
+        };
+
+        // Start checking
+        setTimeout(check, 500);
+      });
+    },
+
+    /**
+     * Wait for an element to disappear from the page.
+     * Used for streaming indicators (stop button visible while AI generates).
+     *
+     * @param {object} fingerprint - Element fingerprint to wait for
+     * @param {object} [opts]
+     * @param {number} [opts.timeout] - Max wait time (ms)
+     * @param {function} [opts.onProgress] - Callback(elapsed, status)
+     * @returns {Promise<object>} { success, elapsed }
+     */
+    async waitForDisappear(fingerprint, opts = {}) {
+      const timeout = opts.timeout || 180000;
+      const onProgress = opts.onProgress || (() => { });
+      const startTime = Date.now();
+
+      console.log(`[Replayer] ⏳ Waiting for element to DISAPPEAR (timeout: ${timeout}ms)`);
+
+      return new Promise((resolve) => {
+        const progressInterval = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          onProgress(elapsed, 'generating');
+        }, 1000);
+
+        const check = () => {
+          const elapsed = Date.now() - startTime;
+
+          // Check if element is gone or hidden
+          const match = PC.SelectorEngine.find(fingerprint);
+
+          if (!match || match.confidence < PC.Constants.CONFIDENCE.MINIMUM) {
+            clearInterval(progressInterval);
+            console.log(`[Replayer] ✅ Element disappeared after ${elapsed}ms`);
+            resolve({ success: true, elapsed });
+            return;
+          }
+
+          // Also check if element is invisible (some sites hide instead of removing)
+          const el = match.element;
+          const style = window.getComputedStyle(el);
+          if (
+            style.display === 'none' ||
+            style.visibility === 'hidden' ||
+            style.opacity === '0'
+          ) {
+            clearInterval(progressInterval);
+            console.log(`[Replayer] ✅ Element became invisible after ${elapsed}ms`);
+            resolve({ success: true, elapsed });
+            return;
+          }
+
+          // Timeout check
+          if (elapsed > timeout) {
+            clearInterval(progressInterval);
+            console.warn(`[Replayer] ⚠️ Element still visible after ${timeout}ms — continuing anyway`);
+            resolve({
+              success: true, // ✅ Non-blocking timeout
+              elapsed,
+              warning: 'Timeout reached but continuing',
+            });
+            return;
+          }
+
+          // Continue polling
+          setTimeout(check, 500);
+        };
+
+        setTimeout(check, 500);
+      });
+    },
+
+    /**
+     * Execute a single step from a macro/workflow.
+     * This is the main entry point for step-by-step replay.
+     *
+     * @param {object} step - JSON step object from workflow
+     * @param {object} [opts] - Options (timeout, onProgress, etc.)
+     * @returns {Promise<object>} { success, result, error }
+     */
+    async executeStep(step, opts = {}) {
+      console.log(`[Replayer] 🎬 Executing step: ${step.action} — ${step.description || ''}`);
+
+      try {
+        switch (step.action) {
+          case 'type':
+            return await this._executeTypeStep(step, opts);
+
+          case 'click':
+            return await this._executeClickStep(step, opts);
+
+          case 'waitForAppear':
+            return await this._executeWaitAppearStep(step, opts);
+
+          case 'waitForDisappear':
+            return await this._executeWaitDisappearStep(step, opts);
+
+          default:
+            return {
+              success: false,
+              error: `Unknown action type: ${step.action}`,
+            };
+        }
+      } catch (err) {
+        console.error(`[Replayer] ❌ Step execution failed:`, err);
+        return {
+          success: false,
+          error: err.message,
+        };
+      }
+    },
+
+    /**
+ * Execute a 'type' step with verification.
+ */
+    async _executeTypeStep(step, opts) {
+      const text = step.value || '';
+      const fingerprint = step.selector;
+
+      const result = await this.injectAndVerify(fingerprint, text, {
+        timeout: opts.timeout || 10000,
+        verifyAttempts: 3,
+        verifyDelay: 300,
+      });
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error || 'Failed to inject text',
+          result,
+        };
+      }
+
+      console.log(
+        `[Replayer] ✅ Type step complete — ` +
+        `injected "${PC.Utils.truncate(text, 30)}" ` +
+        `(verified: ${result.verified})`
+      );
+
+      return {
+        success: true,
+        result: {
+          textLength: text.length,
+          verified: result.verified,
+          confidence: result.confidence,
+          method: result.method,
+        },
+      };
+    },
+
+    /**
+     * Execute a 'click' step.
+     */
+    async _executeClickStep(step, opts) {
+      const fingerprint = step.selector;
+
+      // For send buttons, we might have an input fingerprint for fallback
+      const inputFingerprint = opts.inputFingerprint || null;
+
+      const result = await this.clickSend(fingerprint, inputFingerprint, {
+        timeout: opts.timeout || 5000,
+      });
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error || 'Failed to click element',
+          result,
+        };
+      }
+
+      console.log(
+        `[Replayer] ✅ Click step complete — ` +
+        `confidence: ${result.confidence?.toFixed(2) || 'N/A'}, ` +
+        `method: ${result.method}`
+      );
+
+      return {
+        success: true,
+        result: {
+          confidence: result.confidence,
+          method: result.method,
+          usedFallback: result.usedFallback,
+        },
+      };
+    },
+
+    /**
+     * Execute a 'waitForAppear' step.
+     */
+    async _executeWaitAppearStep(step, opts) {
+      const fingerprint = step.selector;
+      const timeout = step.timeout || opts.timeout || 180000;
+
+      const result = await this.waitForAppear(fingerprint, {
+        timeout,
+        onProgress: opts.onProgress,
+      });
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error || 'Element did not appear',
+          result,
+        };
+      }
+
+      console.log(
+        `[Replayer] ✅ WaitForAppear step complete — ` +
+        `element appeared after ${result.elapsed}ms`
+      );
+
+      return {
+        success: true,
+        result: {
+          elapsed: result.elapsed,
+          confidence: result.confidence,
+          method: result.method,
+        },
+      };
+    },
+
+    /**
+     * Execute a 'waitForDisappear' step.
+     */
+    async _executeWaitDisappearStep(step, opts) {
+      const fingerprint = step.selector;
+      const timeout = step.timeout || opts.timeout || 180000;
+
+      const result = await this.waitForDisappear(fingerprint, {
+        timeout,
+        onProgress: opts.onProgress,
+      });
+
+      // Note: waitForDisappear is non-blocking on timeout
+      console.log(
+        `[Replayer] ✅ WaitForDisappear step complete — ` +
+        `elapsed: ${result.elapsed}ms` +
+        (result.warning ? ` (${result.warning})` : '')
+      );
+
+      return {
+        success: true,
+        result: {
+          elapsed: result.elapsed,
+          warning: result.warning,
+        },
+      };
     },
 
     /**

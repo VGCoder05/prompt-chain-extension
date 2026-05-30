@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark" data-color="teal">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Prompt Chain Dashboard</title>
   <link rel="stylesheet" href="dashboard.css" />
 </head>
+
 <body>
 
   <div class="app">
@@ -29,11 +31,19 @@
           <span class="nic">⊞</span> Dashboard
         </div>
 
+        <!--  NEW: Workflows (primary) -->
+        <div class="ni" data-target="view-workflows">
+          <span class="nic">🎬</span> Workflows
+          <span class="nc" id="count-workflows">0</span>
+        </div>
+
+        <!--  KEEP: Recipes (for legacy and health checks) -->
         <div class="ni" data-target="view-lib">
-          <span class="nic">📁</span> My Library
+          <span class="nic">📁</span> Recipes
           <span class="nc" id="count-recipes">0</span>
         </div>
 
+        <!--  KEEP: Legacy Chains -->
         <div class="ni" data-target="view-chains">
           <span class="nic">⛓</span> Chains
           <span class="nc" id="count-chains">0</span>
@@ -73,7 +83,8 @@
           <input type="text" class="tb-search-input" id="globalSearch" placeholder="🔍 Search..." />
         </div>
         <div class="ta">
-          <button class="btn btnp" id="btnRecordNew">🎯 Record New Recipe</button>
+          <button class="btn" id="btnRecordNew">🎯 Record New</button>
+          <button class="btn btnp" id="btnNewWorkflow">+ New Workflow</button>
         </div>
       </div>
 
@@ -85,12 +96,12 @@
         <!-- ── Stat Cards ──────────────────────────── -->
         <div class="mrow">
           <div class="mc">
-            <div class="ml">Total Recipes</div>
-            <div class="mv" id="stat-recipes">0</div>
+            <div class="ml">Workflows</div>
+            <div class="mv" id="stat-workflows">0</div>
           </div>
           <div class="mc">
-            <div class="ml">Total Chains</div>
-            <div class="mv" id="stat-chains">0</div>
+            <div class="ml">Total Recipes</div>
+            <div class="mv" id="stat-recipes">0</div>
           </div>
           <div class="mc">
             <div class="ml">Runs Today</div>
@@ -105,12 +116,12 @@
         <!-- ── Dashboard Content Grid ──────────────── -->
         <div class="dash-split">
 
-          <!-- Recent Chains -->
+          <!-- Recent Workflows -->
           <div class="card">
             <div class="ch">
-              <span class="ct">Recent Chains</span>
+              <span class="ct">Recent Workflows</span>
             </div>
-            <div class="card-body" id="dash-recent-chains">
+            <div class="card-body" id="dash-recent-workflows">
               <div class="card-empty">Loading...</div>
             </div>
           </div>
@@ -123,11 +134,11 @@
             <div class="card-body" id="dash-quick-actions">
               <button class="dash-action-btn" id="dashBtnRecord">
                 <span class="dash-action-icon">🎯</span>
-                <span class="dash-action-label">Record Recipe</span>
+                <span class="dash-action-label">Record New</span>
               </button>
-              <button class="dash-action-btn" id="dashBtnNewChain">
-                <span class="dash-action-icon">⛓</span>
-                <span class="dash-action-label">New Chain</span>
+              <button class="dash-action-btn" id="dashBtnNewWorkflow">
+                <span class="dash-action-icon">🎬</span>
+                <span class="dash-action-label">New Workflow</span>
               </button>
               <button class="dash-action-btn" id="dashBtnExport">
                 <span class="dash-action-icon">📤</span>
@@ -137,6 +148,97 @@
                 <span class="dash-action-icon">📥</span>
                 <span class="dash-action-label">Import</span>
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ──────────────────────────────────────────── -->
+      <!--  VIEW: Workflows (JSON-based Macros)          -->
+      <!-- ──────────────────────────────────────────── -->
+      <div class="view-section" id="view-workflows">
+        <div class="workflow-layout">
+
+          <!-- ── Workflow Sidebar (list) ───────────── -->
+          <div class="chain-sidebar">
+            <div class="chain-sidebar-header">
+              <span class="chain-sidebar-title">Saved Workflows</span>
+              <button class="btn btnp" id="btnNewWorkflowAlt">+ New</button>
+            </div>
+
+            <div class="chain-sidebar-search">
+              <input type="text" class="chain-search-input" id="workflowSearch" placeholder="🔍 Filter workflows..." />
+            </div>
+
+            <div class="chain-sidebar-list" id="workflow-sidebar-list">
+              <!-- Populated by JS -->
+            </div>
+
+            <div class="chain-sidebar-empty" id="workflow-sidebar-empty" style="display:none;">
+              <p>No workflows yet.</p>
+              <p class="hint">Record a new workflow or import one.</p>
+            </div>
+          </div>
+
+          <!-- ── Workflow Editor (right pane) ──────── -->
+          <div class="chain-builder" id="workflow-builder">
+
+            <!-- Default state -->
+            <div class="chain-builder-empty" id="workflow-builder-empty">
+              <div class="chain-builder-empty-icon">🎬</div>
+              <p>Select a workflow or record a new one.</p>
+              <button class="btn btnp" id="btnRecordWorkflow">🎯 Record New Workflow</button>
+            </div>
+
+            <!-- Workflow Editor -->
+            <div class="chain-editor" id="workflow-editor" style="display:none;">
+
+              <!-- Workflow Header -->
+              <div class="chain-editor-header">
+                <input type="text" class="chain-name-input" id="workflowEditorName" placeholder="Workflow name..." />
+                <div class="chain-editor-actions">
+                  <button class="btn btnp" id="btnRunWorkflow">▶ Run</button>
+                  <button class="btn" id="btnHealthCheckWorkflow">🔍 Health</button>
+                  <button class="btn btn--danger" id="btnDeleteWorkflow">🗑️ Delete</button>
+                </div>
+              </div>
+
+              <!-- Workflow Meta -->
+              <div class="chain-field">
+                <div class="workflow-meta" id="workflowMeta">
+                  <!-- domain, step count, created date -->
+                </div>
+              </div>
+
+              <!-- Variables Section -->
+              <div class="chain-field" id="workflowVariablesSection">
+                <label class="chain-field-label">
+                  Variables
+                  <span class="hint">(used as {{VARIABLE_NAME}} in steps)</span>
+                </label>
+                <div class="workflow-variables" id="workflowVariablesList">
+                  <!-- Populated by JS -->
+                </div>
+              </div>
+
+              <!-- Steps Section -->
+              <div class="chain-field">
+                <label class="chain-field-label">
+                  Steps
+                  <span class="chain-prompt-count" id="workflowStepCount">(0)</span>
+                </label>
+                <div class="chain-prompts" id="workflowStepsList">
+                  <!-- Populated by JS -->
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div class="chain-editor-footer">
+                <button class="btn btnp" id="btnSaveWorkflow">💾 Save Workflow</button>
+                <button class="btn" id="btnCancelWorkflow">Cancel</button>
+                <button class="btn" id="btnExportWorkflow">📤 Export</button>
+              </div>
+
             </div>
           </div>
         </div>
@@ -165,7 +267,8 @@
         <div class="view-empty" id="library-empty" style="display:none;">
           <div class="view-empty-icon">📁</div>
           <p>No recipes recorded yet.</p>
-          <p class="hint">Navigate to an AI chat site and click <strong>🎯 Record New Recipe</strong> to get started.</p>
+          <p class="hint">Navigate to an AI chat site and click <strong>🎯 Record New Recipe</strong> to get started.
+          </p>
         </div>
       </div>
 
@@ -259,4 +362,5 @@
   <script src="../lib/logger.js"></script>
   <script src="dashboard.js"></script>
 </body>
+
 </html>

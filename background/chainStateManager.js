@@ -21,9 +21,21 @@
   root.PC.ChainStateManager = {
 
     /**
-     * Save a snapshot of the active chain state.
-     * Called whenever a status update arrives from the content script.
-     */
+ * Save a snapshot of the active macro/workflow execution state.
+ * Called whenever a status update arrives from the content script.
+ *
+ * State Schema:
+ *   - workflowId: string
+ *   - workflowName: string
+ *   - steps: array of step objects
+ *   - currentStepIndex: number (0-based)
+ *   - variables: object (e.g. { USER_PROMPT: "..." })
+ *   - status: 'starting' | 'running' | 'waiting' | 'paused' | 'completed' | 'failed'
+ *   - tabId: number
+ *   - tabUrl: string
+ *   - startedAt: ISO timestamp
+ *   - savedAt: ISO timestamp (auto-added)
+ */
     async save(state) {
       try {
         await chrome.storage.session.set({
@@ -69,6 +81,69 @@
       const current = await this.get();
       if (!current) return;
       await this.save({ ...current, ...updates });
+    },
+
+    /**
+ * Get the current step being executed.
+ * Returns null if no chain is active or index is invalid.
+ */
+    async getCurrentStep() {
+      const state = await this.get();
+      if (!state || !state.steps) return null;
+
+      const index = state.currentStepIndex || 0;
+      return state.steps[index] || null;
+    },
+
+    /**
+     * Get the next step to execute.
+     * Returns null if we're at the end.
+     */
+    async getNextStep() {
+      const state = await this.get();
+      if (!state || !state.steps) return null;
+
+      const nextIndex = (state.currentStepIndex || 0) + 1;
+      return state.steps[nextIndex] || null;
+    },
+
+    /**
+     * Increment the step index.
+     * Returns the new index, or null if we're at the end.
+     */
+    async incrementStep() {
+      const state = await this.get();
+      if (!state || !state.steps) return null;
+
+      const newIndex = (state.currentStepIndex || 0) + 1;
+
+      if (newIndex >= state.steps.length) {
+        return null; // End of workflow
+      }
+
+      await this.update({ currentStepIndex: newIndex });
+      return newIndex;
+    },
+
+    /**
+     * Interpolate variables in a step's value field.
+     * Replaces {{VARIABLE_NAME}} with actual values.
+     */
+    interpolateStep(step, variables) {
+      if (!step || !step.value || !variables) return step;
+
+      const interpolated = { ...step };
+
+      // Replace variables in the value field
+      interpolated.value = step.value.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+        if (variables.hasOwnProperty(varName)) {
+          return variables[varName];
+        }
+        console.warn(`[ChainStateManager] Variable {{${varName}}} not found in:`, variables);
+        return match; // Leave unreplaced if not found
+      });
+
+      return interpolated;
     },
   };
 })();

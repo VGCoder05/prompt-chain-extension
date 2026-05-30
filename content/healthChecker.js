@@ -1,21 +1,28 @@
 /**
  * content/healthChecker.js
  * ────────────────────────────────────────────
- * Pre-run health check for recorded recipes.
- * Verifies all recorded elements can still be found
+ * Pre-run health check for recorded recipes AND workflows.
+ * Verifies all recorded elements/selectors can still be found
  * on the current page with acceptable confidence.
  *
- * Returns a report with per-element status:
+ * Supports TWO formats:
+ *   1. Legacy Recipes — elements object (targetInput, sendTrigger, etc.)
+ *   2. New Workflows — steps array (JSON action steps)
+ *
+ * Returns a report with per-element/step status:
  *   healthy (>0.8), degraded (0.5-0.8), broken (<0.5)
  *
- * Used by chainRunner before starting a chain,
- * and by the dashboard/popup for recipe status display.
+ * Main API:
+ *   - checkAuto(recipeOrWorkflow) — Auto-detects format
+ *   - check(recipe) — Legacy recipe checker
+ *   - checkSteps(workflow) — New workflow checker
  *
  * Dependencies:
  *   - PC.SelectorEngine (content/selectorEngine.js)
  *   - PC.Constants (lib/constants.js)
  *   - PC.Logger (lib/logger.js)
  */
+
 (() => {
   const root = typeof globalThis !== 'undefined' ? globalThis : self;
   root.PC = root.PC || {};
@@ -87,7 +94,7 @@
         }
 
         const icon = health.status === 'healthy' ? '✅' :
-                     health.status === 'degraded' ? '⚠️' : '❌';
+          health.status === 'degraded' ? '⚠️' : '❌';
 
         console.log(
           `[HealthCheck] ${icon} ${name}: ${health.status} ` +
@@ -122,7 +129,7 @@
 
       // Log summary
       const overallIcon = report.overall === 'healthy' ? '✅' :
-                          report.overall === 'degraded' ? '⚠️' : '❌';
+        report.overall === 'degraded' ? '⚠️' : '❌';
       console.log(
         `[HealthCheck] ${overallIcon} Overall: ${report.overall} — ` +
         `canRun: ${report.canRun}` +
@@ -146,6 +153,144 @@
       );
 
       return report;
+    },
+
+    /**
+ * Run health check on a workflow's JSON steps.
+ * Validates that all selectors in the steps array are findable.
+ *
+ * @param {object} workflow - Workflow object with steps array
+ * @returns {object} {
+ *   overall: 'healthy' | 'degraded' | 'broken',
+ *   steps: [
+ *     { stepId, action, found, confidence, method, status },
+ *     ...
+ *   ],
+ *   brokenSteps: number[],  // indices of broken steps
+ *   canRun: boolean,
+ * }
+ */
+    checkSteps(workflow) {
+      if (!workflow || !workflow.steps || !Array.isArray(workflow.steps)) {
+        return {
+          overall: 'broken',
+          steps: [],
+          brokenSteps: [],
+          canRun: false,
+        };
+      }
+
+      const report = {
+        steps: [],
+        brokenSteps: [],
+      };
+
+      workflow.steps.forEach((step, index) => {
+        const stepReport = {
+          stepId: step.id || `step_${index + 1}`,
+          action: step.action,
+          description: step.description || '',
+        };
+
+        // Steps without selectors (like delays) are always healthy
+        if (!step.selector) {
+          stepReport.found = true;
+          stepReport.confidence = 1.0;
+          stepReport.method = 'n/a';
+          stepReport.status = 'healthy';
+          report.steps.push(stepReport);
+          return;
+        }
+
+        // Check if selector can be found
+        const health = PC.SelectorEngine.checkHealth(step.selector);
+
+        stepReport.found = health.found;
+        stepReport.confidence = health.confidence;
+        stepReport.method = health.method;
+        stepReport.status = health.status;
+
+        if (health.status === 'broken' || health.status === 'unreliable') {
+          report.brokenSteps.push(index);
+        }
+
+        report.steps.push(stepReport);
+
+        const icon = health.status === 'healthy' ? '✅' :
+          health.status === 'degraded' ? '⚠️' : '❌';
+
+        console.log(
+          `[HealthCheck] ${icon} Step ${index + 1} (${step.action}): ${health.status} ` +
+          `(confidence: ${health.confidence.toFixed(2)})`
+        );
+      });
+
+      // Determine overall health
+      const statuses = report.steps.map((s) => s.status);
+
+      if (statuses.every((s) => s === 'healthy')) {
+        report.overall = 'healthy';
+      } else if (statuses.some((s) => s === 'broken' || s === 'unreliable')) {
+        report.overall = 'broken';
+      } else {
+        report.overall = 'degraded';
+      }
+
+      // Can run if no critical steps are broken
+      // (waitForDisappear can timeout gracefully, so only fail on type/click breaks)
+      const criticalSteps = report.steps.filter(
+        (s) => s.action === 'type' || s.action === 'click'
+      );
+      const criticalOk = criticalSteps.every(
+        (s) => s.status === 'healthy' || s.status === 'degraded'
+      );
+
+      report.canRun = criticalOk;
+
+      const overallIcon = report.overall === 'healthy' ? '✅' :
+        report.overall === 'degraded' ? '⚠️' : '❌';
+      console.log(
+        `[HealthCheck] ${overallIcon} Overall: ${report.overall} — ` +
+        `canRun: ${report.canRun}` +
+        (report.brokenSteps.length > 0
+          ? ` — broken steps: [${report.brokenSteps.map(i => i + 1).join(', ')}]`
+          : '')
+      );
+
+      return report;
+    },
+
+    /**
+ * Universal health check — works with both old recipes and new workflows.
+ * Automatically detects format and calls appropriate checker.
+ *
+ * @param {object} recipeOrWorkflow
+ * @returns {object} health report
+ */
+    checkAuto(recipeOrWorkflow) {
+      if (!recipeOrWorkflow) {
+        return {
+          overall: 'broken',
+          canRun: false,
+        };
+      }
+
+      // New format: has steps array
+      if (recipeOrWorkflow.steps && Array.isArray(recipeOrWorkflow.steps)) {
+        console.log('[HealthCheck] Detected new workflow format (steps array)');
+        return this.checkSteps(recipeOrWorkflow);
+      }
+
+      // Old format: has elements object
+      if (recipeOrWorkflow.elements) {
+        console.log('[HealthCheck] Detected legacy recipe format (elements object)');
+        return this.check(recipeOrWorkflow);
+      }
+
+      return {
+        overall: 'broken',
+        canRun: false,
+      };
     },
 
     /**

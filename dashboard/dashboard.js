@@ -23,9 +23,10 @@
 
   // ── State ───────────────────────────────────────────────────────
   let recipes = [];
+  let workflows = [];
   let chains = [];
   let selectedChainId = null;  // currently selected chain in editor
-
+  let selectedWorkflowId = null;  // currently selected workflow in editor
 
   // ══════════════════════════════════════════════════════════════════
   //  INITIALIZATION
@@ -93,6 +94,23 @@
     });
   }
 
+  /**
+ * Navigate to a view programmatically.
+ */
+  function navigateTo(viewId) {
+    $$('.ni').forEach((n) => {
+      n.classList.toggle('active', n.dataset.target === viewId);
+    });
+    $$('.view-section').forEach((v) => {
+      v.classList.toggle('active', v.id === viewId);
+    });
+    const navItem = $(`[data-target="${viewId}"]`);
+    if (navItem) {
+      const title = navItem.textContent.trim().replace(/\d+$/, '').trim();
+      $('#breadcrumb').textContent = `/ ${title}`;
+    }
+  }
+
 
   // ══════════════════════════════════════════════════════════════════
   //  GLOBAL SEARCH
@@ -124,6 +142,10 @@
   function setupEventListeners() {
     // ── Top bar ──
     $('#btnRecordNew').addEventListener('click', startRecording);
+    $('#btnNewWorkflow').addEventListener('click', () => {
+      navigateTo('view-workflows');
+      openWorkflowEditor(null);
+    });
 
     // ── Library view ──
     $('#btnRefreshRecipes').addEventListener('click', loadData);
@@ -132,6 +154,19 @@
     // ── Chains view ──
     $('#btnNewChain').addEventListener('click', () => openChainEditor(null));
     $('#btnNewChainAlt').addEventListener('click', () => openChainEditor(null));
+
+    // ── Workflows view (✅ NEW) ──
+    $('#btnNewWorkflowAlt').addEventListener('click', () => openWorkflowEditor(null));
+    $('#btnRecordWorkflow').addEventListener('click', startRecording);
+
+    // ── Workflow search ──
+    $('#workflowSearch').addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      $$('#workflow-sidebar-list .chain-sidebar-item').forEach((item) => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(query) ? '' : 'none';
+      });
+    });
 
     // ── Chain search ──
     $('#chainSearch').addEventListener('input', (e) => {
@@ -144,14 +179,18 @@
 
     // ── Dashboard quick actions ──
     $('#dashBtnRecord').addEventListener('click', startRecording);
-    $('#dashBtnNewChain').addEventListener('click', () => {
-      // Switch to chains view and open editor
-      $$('.ni').forEach((n) => n.classList.remove('active'));
-      const chainsNav = $('[data-target="view-chains"]');
-      chainsNav.classList.add('active');
-      $$('.view-section').forEach((v) => v.classList.toggle('active', v.id === 'view-chains'));
-      $('#breadcrumb').textContent = '/ Chains';
-      openChainEditor(null);
+    // $('#dashBtnNewChain').addEventListener('click', () => {
+    //   // Switch to chains view and open editor
+    //   $$('.ni').forEach((n) => n.classList.remove('active'));
+    //   const chainsNav = $('[data-target="view-chains"]');
+    //   chainsNav.classList.add('active');
+    //   $$('.view-section').forEach((v) => v.classList.toggle('active', v.id === 'view-chains'));
+    //   $('#breadcrumb').textContent = '/ Chains';
+    //   openChainEditor(null);
+    // });      
+    $('#dashBtnNewWorkflow').addEventListener('click', () => {
+      navigateTo('view-workflows');
+      openWorkflowEditor(null);
     });
     $('#dashBtnExport').addEventListener('click', exportAll);
     $('#dashBtnImport').addEventListener('click', importData);
@@ -165,16 +204,30 @@
   async function loadData() {
     recipes = await PC.Storage.recipes.getAll();
     chains = await PC.Storage.chains.getAll();
+    workflows = await PC.Storage.workflows.getAll();
 
     // Update stat counts
     $('#count-recipes').textContent = recipes.length;
-    $('#stat-recipes').textContent = recipes.length;
     $('#count-chains').textContent = chains.length;
-    $('#stat-chains').textContent = chains.length;
+    $('#count-workflows').textContent = workflows.length;
+
+    $('#stat-recipes').textContent = recipes.length;
+    $('#stat-workflows').textContent = workflows.length;
+
+    // Update runs today
+    const logsToday = await PC.Storage.logs.getFiltered({
+      limit: 1000,
+    });
+    const today = new Date().toDateString();
+    const runsToday = logsToday.filter(
+      (l) => new Date(l.timestamp).toDateString() === today
+    ).length;
+    $('#stat-runs-today').textContent = runsToday;
 
     renderLibrary();
     renderChainSidebar();
-    renderDashboardRecentChains();
+    renderWorkflowSidebar();
+    renderDashboardRecentWorkflows();
 
     // If a chain was selected, re-render its editor
     if (selectedChainId) {
@@ -184,6 +237,17 @@
       } else {
         selectedChainId = null;
         showChainBuilderEmpty();
+      }
+    }
+
+    // ✅ NEW : For Workflow
+    if (selectedWorkflowId) {
+      const workflow = workflows.find((w) => w.id === selectedWorkflowId);
+      if (workflow) {
+        openWorkflowEditor(workflow);
+      } else {
+        selectedWorkflowId = null;
+        showWorkflowBuilderEmpty();
       }
     }
   }
@@ -305,6 +369,45 @@
     }
   }
 
+  function renderWorkflowSidebar() {
+    const sidebar = $('#workflow-sidebar-list');
+    const emptyState = $('#workflow-sidebar-empty');
+
+    sidebar.innerHTML = '';
+
+    if (workflows.length === 0) {
+      emptyState.style.display = 'block';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+
+    for (const workflow of workflows) {
+      const stepCount = workflow.steps?.length || 0;
+      const item = document.createElement('div');
+      item.className = 'chain-sidebar-item';
+      if (workflow.id === selectedWorkflowId) item.classList.add('active');
+
+      item.innerHTML = `
+      <div class="chain-sidebar-item-name">${escapeHtml(workflow.name)}</div>
+      <div class="chain-sidebar-item-meta">
+        ${stepCount} step${stepCount !== 1 ? 's' : ''} · ${escapeHtml(workflow.domain || '')}
+      </div>
+    `;
+
+      item.addEventListener('click', () => {
+        selectedWorkflowId = workflow.id;
+        openWorkflowEditor(workflow);
+        $$('#workflow-sidebar-list .chain-sidebar-item').forEach((el) =>
+          el.classList.remove('active')
+        );
+        item.classList.add('active');
+      });
+
+      sidebar.appendChild(item);
+    }
+  }
+
 
   // ══════════════════════════════════════════════════════════════════
   //  CHAINS — EDITOR
@@ -416,6 +519,123 @@
       $$('.chain-sidebar-item').forEach((el) => el.classList.remove('active'));
     };
   }
+
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Workflow — EDITOR
+  // ══════════════════════════════════════════════════════════════════
+  function showWorkflowBuilderEmpty() {
+    $('#workflow-builder-empty').style.display = 'flex';
+    $('#workflow-editor').style.display = 'none';
+  }
+
+  function openWorkflowEditor(workflow) {
+    const emptyEl = $('#workflow-builder-empty');
+    const editorEl = $('#workflow-editor');
+
+    emptyEl.style.display = 'none';
+    editorEl.style.display = 'block';
+
+    const isNew = !workflow;
+    const editWorkflow = workflow || {
+      name: 'New Workflow',
+      domain: '',
+      steps: [],
+      variables: {},
+    };
+
+    if (workflow) selectedWorkflowId = workflow.id;
+
+    // ── Name ──
+    $('#workflowEditorName').value = editWorkflow.name;
+
+    // ── Meta ──
+    $('#workflowMeta').innerHTML = workflow ? `
+    <span class="workflow-meta-item">🌐 ${escapeHtml(editWorkflow.domain || 'Unknown domain')}</span>
+    <span class="workflow-meta-item">📅 ${formatDate(editWorkflow.createdAt)}</span>
+    <span class="workflow-meta-item">📝 ${editWorkflow.steps?.length || 0} steps</span>
+  ` : '<span class="workflow-meta-item">New workflow</span>';
+
+    // ── Variables ──
+    renderWorkflowVariables(editWorkflow.variables || {});
+
+    // ── Steps ──
+    renderWorkflowSteps(editWorkflow.steps || []);
+
+    // ── Run Button ──
+    $('#btnRunWorkflow').style.display = isNew ? 'none' : 'inline-block';
+    $('#btnRunWorkflow').onclick = async () => {
+      await runWorkflow(editWorkflow);
+    };
+
+    // ── Health Check ──
+    $('#btnHealthCheckWorkflow').onclick = async () => {
+      await healthCheckWorkflow(editWorkflow);
+    };
+
+    // ── Delete ──
+    $('#btnDeleteWorkflow').style.display = isNew ? 'none' : 'inline-block';
+    $('#btnDeleteWorkflow').onclick = async () => {
+      if (!workflow) return;
+      if (confirm(`Delete workflow "${editWorkflow.name}"?`)) {
+        await PC.Storage.workflows.remove(editWorkflow.id);
+        selectedWorkflowId = null;
+        showWorkflowBuilderEmpty();
+        await loadData();
+      }
+    };
+
+    // ── Save ──
+    $('#btnSaveWorkflow').onclick = async () => {
+      const name = $('#workflowEditorName').value.trim();
+      if (!name) {
+        alert('Please enter a workflow name.');
+        return;
+      }
+
+      const steps = collectStepsFromEditor();
+      const variables = collectVariablesFromEditor();
+
+      if (isNew) {
+        const newWorkflow = await PC.Storage.workflows.add({
+          name,
+          domain: editWorkflow.domain,
+          steps,
+          variables,
+        });
+        selectedWorkflowId = newWorkflow.id;
+      } else {
+        await PC.Storage.workflows.update(editWorkflow.id, { name, steps, variables });
+      }
+
+      await loadData();
+    };
+
+    // ── Cancel ──
+    $('#btnCancelWorkflow').onclick = () => {
+      selectedWorkflowId = null;
+      showWorkflowBuilderEmpty();
+      $$('#workflow-sidebar-list .chain-sidebar-item').forEach((el) =>
+        el.classList.remove('active')
+      );
+    };
+
+    // ── Export Single Workflow ──
+    $('#btnExportWorkflow').onclick = () => {
+      if (!workflow) return;
+      const blob = new Blob(
+        [JSON.stringify(workflow, null, 2)],
+        { type: 'application/json' }
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `workflow-${workflow.name.toLowerCase().replace(/\s+/g, '-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+  }
+
 
   function renderPromptList(prompts) {
     const container = $('#chainEditorPrompts');
@@ -691,8 +911,341 @@
     }
   }
 
+  function renderWorkflowVariables(variables) {
+    const container = $('#workflowVariablesList');
+    container.innerHTML = '';
+
+    const entries = Object.entries(variables);
+
+    if (entries.length === 0) {
+      container.innerHTML = '<div class="card-empty hint">No variables defined. They will be added automatically from steps with {{VARIABLE_NAME}} values.</div>';
+      return;
+    }
+
+    for (const [name, config] of entries) {
+      const item = document.createElement('div');
+      item.className = 'workflow-variable-item';
+      item.dataset.varName = name;
+
+      const labelText = typeof config === 'object' ? config.label || name : name;
+      const defaultVal = typeof config === 'object' ? config.default || '' : config;
+
+      item.innerHTML = `
+      <div class="workflow-variable-header">
+        <span class="workflow-variable-tag">{{${escapeHtml(name)}}}</span>
+        <button class="chain-prompt-btn chain-prompt-btn--delete" 
+                data-action="remove-var" title="Remove variable">✕</button>
+      </div>
+      <div class="workflow-variable-fields">
+        <input type="text" class="chain-field-input var-label-input"
+               placeholder="Display label" value="${escapeHtml(labelText)}" />
+        <input type="text" class="chain-field-input var-default-input"
+               placeholder="Default value" value="${escapeHtml(defaultVal)}" />
+      </div>
+    `;
+
+      item.querySelector('[data-action="remove-var"]').addEventListener('click', () => {
+        item.remove();
+      });
+
+      container.appendChild(item);
+    }
+  }
+
+  function collectVariablesFromEditor() {
+    const variables = {};
+    $$('#workflowVariablesList .workflow-variable-item').forEach((item) => {
+      const name = item.dataset.varName;
+      const label = item.querySelector('.var-label-input')?.value.trim() || name;
+      const defaultVal = item.querySelector('.var-default-input')?.value.trim() || '';
+      variables[name] = {
+        label,
+        type: 'text',
+        required: true,
+        default: defaultVal,
+      };
+    });
+    return variables;
+  }
+
+  function renderWorkflowSteps(steps) {
+    const container = $('#workflowStepsList');
+    const countEl = $('#workflowStepCount');
+    container.innerHTML = '';
+    countEl.textContent = `(${steps.length})`;
+
+    if (steps.length === 0) {
+      container.innerHTML = `
+      <div class="card-empty hint">
+        No steps recorded. Click "🎯 Record New" to record a workflow.
+      </div>
+    `;
+      return;
+    }
+
+    const actionLabels = {
+      type: '⌨️ Type text',
+      click: '👆 Click element',
+      waitForAppear: '👀 Wait for appear',
+      waitForDisappear: '⏳ Wait for disappear',
+    };
+
+    steps.forEach((step, index) => {
+      const item = document.createElement('div');
+      item.className = 'chain-prompt-item workflow-step-item';
+      item.draggable = true;
+      item.dataset.index = index;
+
+      // Build value display
+      const valueDisplay = step.value
+        ? `<div class="workflow-step-value">
+           Value: 
+           <span class="workflow-step-value-text" 
+                 data-step-index="${index}">${escapeHtml(step.value)}</span>
+           ${step.variableName
+          ? `<span class="workflow-var-badge">{{${escapeHtml(step.variableName)}}}</span>`
+          : ''}
+         </div>`
+        : '';
+
+      item.innerHTML = `
+      <div class="chain-prompt-number">${index + 1}</div>
+      <div class="step-body workflow-step-body">
+        <div class="workflow-step-action">
+          ${actionLabels[step.action] || step.action}
+        </div>
+        <div class="workflow-step-description">
+          ${escapeHtml(step.description || '')}
+        </div>
+        ${valueDisplay}
+      </div>
+      <div class="chain-prompt-actions">
+        <button class="chain-prompt-btn" 
+                data-action="make-variable" 
+                data-index="${index}"
+                title="Convert value to variable">{{x}}</button>
+        <button class="chain-prompt-btn chain-prompt-btn--drag" 
+                title="Drag to reorder">⠿</button>
+        <button class="chain-prompt-btn chain-prompt-btn--delete" 
+                data-action="remove-step" 
+                data-index="${index}"
+                title="Remove step">✕</button>
+      </div>
+    `;
+
+      // ✅ Remove step
+      item.querySelector('[data-action="remove-step"]').addEventListener('click', () => {
+        const currentSteps = collectStepsFromEditor();
+        currentSteps.splice(index, 1);
+        renderWorkflowSteps(currentSteps);
+      });
+
+      // ✅ Convert value to variable
+      item.querySelector('[data-action="make-variable"]')?.addEventListener('click', () => {
+        if (!step.value || step.variableName) return;
+
+        const varName = prompt(
+          `Convert "${PC.Utils.truncate(step.value, 30)}" to a variable?\n` +
+          `Enter variable name (e.g., USER_PROMPT):`,
+          'USER_PROMPT'
+        );
+
+        if (!varName) return;
+
+        const cleanName = varName.trim().toUpperCase().replace(/\s+/g, '_');
+        const currentSteps = collectStepsFromEditor();
+        currentSteps[index] = {
+          ...currentSteps[index],
+          value: `{{${cleanName}}}`,
+          variableName: cleanName,
+        };
+
+        // Auto-add variable to variables section
+        const existingVars = collectVariablesFromEditor();
+        if (!existingVars[cleanName]) {
+          const container = $('#workflowVariablesList');
+          const varItem = document.createElement('div');
+          varItem.className = 'workflow-variable-item';
+          varItem.dataset.varName = cleanName;
+          varItem.innerHTML = `
+          <div class="workflow-variable-header">
+            <span class="workflow-variable-tag">{{${escapeHtml(cleanName)}}}</span>
+            <button class="chain-prompt-btn chain-prompt-btn--delete"
+                    data-action="remove-var" title="Remove variable">✕</button>
+          </div>
+          <div class="workflow-variable-fields">
+            <input type="text" class="chain-field-input var-label-input"
+                   placeholder="Display label" value="${escapeHtml(cleanName)}" />
+            <input type="text" class="chain-field-input var-default-input"
+                   placeholder="Default value" value="" />
+          </div>
+        `;
+          varItem.querySelector('[data-action="remove-var"]').addEventListener('click', () => {
+            varItem.remove();
+          });
+          container.appendChild(varItem);
+        }
+
+        renderWorkflowSteps(currentSteps);
+      });
+
+      // ✅ Drag & drop
+      item.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', index);
+        item.classList.add('dragging');
+      });
+
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+      });
+
+      item.addEventListener('dragover', (e) => e.preventDefault());
+
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        const toIndex = index;
+        if (fromIndex === toIndex) return;
+
+        const currentSteps = collectStepsFromEditor();
+        const [moved] = currentSteps.splice(fromIndex, 1);
+        currentSteps.splice(toIndex, 0, moved);
+        renderWorkflowSteps(currentSteps);
+      });
+
+      container.appendChild(item);
+    });
+  }
+
+  function collectStepsFromEditor() {
+    // Steps are read-only in the editor (recorded, not typed)
+    // Return the current steps from the rendered items
+    const items = $$('#workflowStepsList .workflow-step-item');
+    const currentWorkflow = workflows.find((w) => w.id === selectedWorkflowId);
+    if (!currentWorkflow) return [];
+
+    // Map rendered items back to steps (preserving fingerprints)
+    return Array.from(items).map((item, index) => {
+      const stepIndex = parseInt(item.dataset.index, 10);
+      return currentWorkflow.steps[stepIndex];
+    }).filter(Boolean);
+  }
+
+  async function runWorkflow(workflow) {
+    if (!workflow.steps || workflow.steps.length === 0) {
+      alert('This workflow has no steps. Record or add steps first.');
+      return;
+    }
+
+    // Collect variable values from user
+    const variables = {};
+    const variableDefs = workflow.variables || {};
+
+    for (const [name, config] of Object.entries(variableDefs)) {
+      const label = typeof config === 'object' ? config.label || name : name;
+      const defaultVal = typeof config === 'object' ? config.default || '' : '';
+      const value = prompt(`Enter value for: ${label}`, defaultVal);
+      if (value === null) return; // User cancelled
+      variables[name] = value;
+    }
+
+    const response = await PC.Messages.runWorkflow(workflow, variables);
+
+    if (response?.success !== false) {
+      alert(`Workflow "${workflow.name}" started!\nCheck the side panel for live progress.`);
+    } else {
+      alert(`Failed to start workflow: ${response?.error || 'Unknown error'}`);
+    }
+  }
+
+  async function healthCheckWorkflow(workflow) {
+    try {
+      const response = await PC.Messages.send(PC.MessageTypes.CHECK_HEALTH, {
+        workflow,
+      });
+
+      if (response?.canRun) {
+        alert(`✅ Health check passed!\n${workflow.steps.length} steps verified.`);
+      } else if (response?.overall === 'degraded') {
+        alert(`⚠️ Workflow degraded.\nSome selectors may have changed.\nBroken steps: ${response.brokenSteps?.join(', ') || 'none'}`);
+      } else {
+        alert(`❌ Health check failed.\nBroken steps: ${response?.brokenSteps?.join(', ') || 'unknown'}\n\nConsider re-recording this workflow.`);
+      }
+    } catch (err) {
+      alert(`Cannot run health check: ${err.message}\nMake sure you have the target site open.`);
+    }
+  }
+
+  function renderDashboardRecentWorkflows() {
+    const container = $('#dash-recent-workflows');
+    container.innerHTML = '';
+
+    const allItems = [
+      ...workflows.map((w) => ({ ...w, _type: 'workflow' })),
+      ...chains.map((c) => ({ ...c, _type: 'chain' })),
+    ].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 5);
+
+    if (allItems.length === 0) {
+      container.innerHTML = '<div class="card-empty">No workflows created yet.</div>';
+      return;
+    }
+
+    for (const item of allItems) {
+      const el = document.createElement('div');
+      el.className = 'dash-chain-item';
+
+      const icon = item._type === 'workflow' ? '🎬' : '⛓';
+      const meta = item._type === 'workflow'
+        ? `${item.steps?.length || 0} steps · ${item.domain || ''}`
+        : `${item.prompts?.length || 0} prompts`;
+
+      el.innerHTML = `
+      <span class="dash-chain-name">${icon} ${escapeHtml(item.name)}</span>
+      <span class="dash-chain-meta">${escapeHtml(meta)}</span>
+    `;
+
+      el.addEventListener('click', () => {
+        if (item._type === 'workflow') {
+          navigateTo('view-workflows');
+          openWorkflowEditor(item);
+        } else {
+          navigateTo('view-chains');
+          openChainEditor(item);
+        }
+      });
+
+      container.appendChild(el);
+    }
+  }
+
+  // Update status listeners to include workflow events
+  function listenForStatusUpdates() {
+    PC.Messages.listen({
+      [MSG.WORKFLOW_COMPLETED]: (msg) => {
+        PC.Logger?.log(`Workflow completed: ${msg.workflowName}`);
+        loadData();
+      },
+
+      [MSG.WORKFLOW_FAILED]: (msg) => {
+        PC.Logger?.log(`Workflow failed: ${msg.error}`);
+      },
+
+      [MSG.CHAIN_COMPLETED]: (msg) => {
+        PC.Logger?.log(`Chain completed: ${msg.success}/${msg.total} succeeded`);
+        loadData();
+      },
+
+      [MSG.RECORDING_COMPLETE]: (msg) => {
+        PC.Logger?.log('Recording complete — refreshing');
+        loadData();
+        // ✅ Navigate to workflows view to show newly recorded workflow
+        setTimeout(() => navigateTo('view-workflows'), 500);
+      },
+    });
+  }
+
 
   // ── Start ───────────────────────────────────────────────────────
   init();
 
-})();
+})(); 

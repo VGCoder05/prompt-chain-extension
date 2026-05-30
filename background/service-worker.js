@@ -76,6 +76,35 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 /**
+ * When service worker restarts mid-workflow, try to reconnect.
+ */
+chrome.runtime.onStartup.addListener(async () => {
+  console.log('[ServiceWorker] Browser started');
+
+  const state = await PC.ChainStateManager.get();
+  
+  if (state && state.status === 'running') {
+    console.log(
+      `[ServiceWorker] 🔄 Found running workflow: ${state.workflowName} ` +
+      `at step ${state.currentStepIndex + 1}/${state.steps.length}`
+    );
+
+    // The content script is still running and will send a status update.
+    // We just need to restore our internal _activeTabId.
+    _activeTabId = state.tabId;
+
+    // Verify the tab still exists
+    try {
+      await chrome.tabs.get(state.tabId);
+      console.log('[ServiceWorker] ✅ Workflow tab still exists — resuming tracking');
+    } catch {
+      console.warn('[ServiceWorker] ⚠️ Workflow tab was closed — clearing state');
+      await PC.ChainStateManager.clear();
+    }
+  }
+});
+
+/**
  * Detect when the tab running a chain is closed.
  * If so, clean up the chain state.
  */
